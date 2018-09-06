@@ -12,13 +12,8 @@ results::results(bool a0is0): a0is0(a0is0), linenergies(gconf.chain_length),
 	entropydump.exceptions(ios::eofbit | ios::failbit | ios::badbit);
 }
 
-void results::dump_results(uint64_t t, const array<double, 2>& entropies) const {
+void results::write_entropy(uint64_t t, const array<double, 2> &entropies) const {
 	if(mpi_global_coord) return;
-	{
-		ofstream linenergies_dump(linenergies_template + to_string(t));
-		linenergies_dump.exceptions(ios::eofbit | ios::failbit | ios::badbit);
-		linenergies_dump.write((char*)linenergies.data(), gconf.linenergy_size);
-	}
 	double entropyinfo[]{ t * gconf.dt, entropies[0], entropies[1] };
 	entropydump.write((char*)&entropyinfo, sizeof(entropyinfo)).flush();
 	if(!gconf.verbose) return;
@@ -27,7 +22,14 @@ void results::dump_results(uint64_t t, const array<double, 2>& entropies) const 
 	cerr<<info.str();
 }
 
-void results::dump_shard(uint64_t t, const double2* shard) const {
+void results::write_linenergies(uint64_t t) const {
+	if(mpi_global_coord) return;
+	ofstream linenergies_dump(linenergies_template + to_string(t));
+	linenergies_dump.exceptions(ios::eofbit | ios::failbit | ios::badbit);
+	linenergies_dump.write((char*)linenergies.data(), gconf.linenergy_size);
+}
+
+void results::write_shard(uint64_t t, const double2 *shard) const {
 	auto dumpname = (gconf.dump_prefix.empty() ? "" : gconf.dump_prefix + "-");
 	dumpname += to_string(t);
 	MPI_File dump_mpif;

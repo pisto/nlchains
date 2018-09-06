@@ -122,7 +122,8 @@ namespace kg_fpu_toda {
 					status && assertcu;
 					auto entropies = res.entropies(gres.linenergies_host, (0.5 / gconf.shard_copies) / gconf.chain_length);
 					res.check_entropy(entropies);
-					res.dump_results(t, entropies);
+					if(t % gconf.steps_grouping_dump == 0) res.write_linenergies(t);
+					res.write_entropy(t, entropies);
 				} catch(...) { callback_err = current_exception(); }
 			});
 			completion(streams[s_entropy_aux]).blocks(streams[s_entropy]);

@@ -14,8 +14,9 @@ struct results {
 	results(bool a0is0);
 
 	std::array<double, 2> entropies(const double* shard_linenergies, double norm_factor = 1.);
-	void dump_results(uint64_t t, const std::array<double, 2>& entropies) const;
-	void dump_shard(uint64_t t, const double2* shard) const;
+	void write_entropy(uint64_t t, const std::array<double, 2> &entropies) const;
+	void write_linenergies(uint64_t t) const;
+	void write_shard(uint64_t t, const double2 *shard) const;
 	void check_entropy(const std::array<double, 2> &entropies) const;
 private:
 	mutable std::ofstream entropydump;

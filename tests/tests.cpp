@@ -37,7 +37,7 @@ namespace tests {
 					throw logic_error("failed planar format");
 			}
 
-		results(0).dump_shard(0, gres.shard_host);
+		results(0).write_shard(0, gres.shard_host);
 
 		return 0;
 	}
