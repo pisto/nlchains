@@ -77,31 +77,32 @@ namespace kg_fpu_toda {
 
 		exception_ptr callback_err;
 		completion throttle;
-		destructor(cudaDeviceSynchronize);
 		plane2split* splitter = 0;
 		if(use_split_kernel){
 			splitter = new plane2split(gconf.chain_length, gconf.shard_copies);
 			splitter->split(gres.shard, streams[s_move]);
 		}
 		destructor([&]{ delete splitter; });
-		bool unified_max_step = false, throttleswitch = true;
-		for (uint64_t t = gconf.timebase;; t += gconf.steps_grouping, throttleswitch ^= true) {
+		uint64_t t = gconf.timebase;
+		auto dumper = [&]{
+			cudaMemcpyAsync(gres.shard_host, gres.shard, gconf.shard_size, cudaMemcpyDeviceToHost, streams[s_dump]) && assertcu;
+			if(!splitter) completion(streams[s_dump]).blocks(streams[s_move]);
+			add_cuda_callback(streams[s_dump], [&, t](cudaStream_t, cudaError_t status) {
+				if(callback_err) return;
+				try {
+					status && assertcu;
+					res.write_shard(t, gres.shard_host);
+				} catch(...) { callback_err = current_exception(); }
+			});
+		};
+		destructor(cudaDeviceSynchronize);
+		for (bool unified_max_step = false, throttleswitch = true;; t += gconf.steps_grouping, throttleswitch ^= true) {
 			//throttle enqueuing of kernels
 			if (throttleswitch) throttle = completion(streams[s_move]);
 			else throttle.wait();
 
 			if(splitter) splitter->plane(gres.shard, streams[s_move], streams[s_dump]).blocks(streams[s_entropy]);
-			if(t % gconf.steps_grouping_dump == 0){
-				cudaMemcpyAsync(gres.shard_host, gres.shard, gconf.shard_size, cudaMemcpyDeviceToHost, streams[s_dump]) && assertcu;
-				if(!splitter) completion(streams[s_dump]).blocks(streams[s_move]);
-				add_cuda_callback(streams[s_dump], [&, t](cudaStream_t, cudaError_t status) {
-					if(callback_err) return;
-					try {
-						status && assertcu;
-						res.dump_shard(t, gres.shard_host);
-					} catch(...) { callback_err = current_exception(); }
-				});
-			}
+			if(t % gconf.steps_grouping_dump == 0) dumper();
 			//entropy stream is already synced to move or dump stream, that is the readiness of the planar representation
 			completion(streams[s_entropy]).blocks(streams[s_entropy_aux]);
 			//interleave phi and pi with zeroes, since we do a complex FFT
@@ -145,6 +146,11 @@ namespace kg_fpu_toda {
 			finish_move.blocks(streams[s_entropy]);
 			finish_move.blocks(streams[s_dump]);
 
+		}
+		if(t % gconf.steps_grouping_dump != 0){
+			dumper();
+			completion(streams[s_entropy]).wait();
+			res.write_linenergies(t);
 		}
 		return 0;
 	}
