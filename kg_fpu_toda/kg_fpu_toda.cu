@@ -9,25 +9,45 @@ namespace kg_fpu_toda {
 	__constant__ double dt_c[8], dt_d[8], m, alpha, beta;
 
 	/*
-	 * Right-hand side of the equation of motion.
+	 * Right-hand side of the equation of motion. Since the interaction is nearest-neighbor, in most cases
+	 * it is possible to cache some computations at one chain element for the element to the right.
 	 */
 
-	template<Model model>
-	__device__ double RHS(double left, double center, double right);
-	template<> __device__ double RHS<KG>(double left, double center, double right){
-		return -(center * (m + 2 + beta * center * center) - left - right);
-	}
-	template<> __device__ double RHS<FPU>(double left, double center, double right){
-		auto ret = (left + right - 2 * center);
-		ret *= (1 + alpha * (right - left));
-		auto dleft = center - left, dright = right - center;
-		ret += beta * (dright * dright * dright - dleft * dleft * dleft);
-		return ret;
-	}
+	template<Model model> struct RHS;
+	template<> struct RHS<KG>{
+		__device__ RHS(double, double){}
+		__device__ double operator()(double left, double center, double right){
+			return -(center * (m + 2 + beta * center * center) - left - right);
+		}
+	};
+	template<> struct RHS<FPU>{
+		double cached_dleft3_beta;
+		__device__ RHS(double left, double center){
+			auto dleft = center - left;
+			cached_dleft3_beta = beta * dleft * dleft * dleft;
+		}
+		__device__ double operator()(double left, double center, double right){
+			auto ret = (left + right - 2 * center);
+			ret *= (1 + alpha * (right - left));
+			auto dright = right - center;
+			double dright3_beta = beta * dright * dright * dright;
+			ret += dright3_beta - cached_dleft3_beta;
+			cached_dleft3_beta = dright3_beta;
+			return ret;
+		}
+	};
 	__constant__ double alpha2, alpha2_inv;
-	template<> __device__ double RHS<Toda>(double left, double center, double right){
-		return alpha2_inv * (exp(alpha2 * (right - center)) - exp(alpha2 * (center - left)));
-	}
+	template<> struct RHS<Toda>{
+		double cached_exp_dleft_over_alpha2;
+		__device__ RHS(double left, double center):
+				cached_exp_dleft_over_alpha2(alpha2_inv * exp(alpha2 * (center - left))) {}
+		__device__ double operator()(double left, double center, double right){
+			double exp_dright = alpha2_inv * exp(alpha2 * (right - center));
+			double ret = exp_dright - cached_exp_dleft_over_alpha2;
+			cached_exp_dleft_over_alpha2 = exp_dright;
+			return ret;
+		}
+	};
 
 	/*
 	 * Optimized version of time march, no memory transfers as all the chain state is loaded in registers and memory is
@@ -35,12 +55,12 @@ namespace kg_fpu_toda {
 	 * This kernel must be recompiled for each target chain_length, because that is to be a compile time constant,
 	 * because phi[] and pi[] must be indexed statically, otherwise accesses to local memory are generated.
 	 */
-	namespace {
-		constexpr int elements_in_thread = optimized_chain_length / 32 + !!(optimized_chain_length % 32),
-				full_lanes = optimized_chain_length % 32 ?: 32;
-	}
 	template<Model model>
 	__global__ void move_chain_in_warp(double2 *planar, uint32_t steps_grouping, uint16_t copies){
+		//compile-time
+		constexpr int elements_in_thread = optimized_chain_length / 32 + !!(optimized_chain_length % 32),
+				full_lanes = optimized_chain_length % 32 ?: 32;
+
 		int idx = blockIdx.x * blockDim.x + threadIdx.x,
 				my_copy = idx / 32, lane = idx % 32, lane_left = (lane + 31) % 32, lane_right = (lane + 1) % 32;
 		bool full_lane = lane < full_lanes;
@@ -83,9 +103,10 @@ namespace kg_fpu_toda {
 				phi[0] = cub::ShuffleIndex<32>(communicate, lane_left, 0xFFFFFFFF);
 				phi[elements_in_thread + 1] = cub::ShuffleIndex<32>(phi[1], lane_right, 0xFFFFFFFF);
 				if(!full_lane) phi[elements_in_thread] = phi[elements_in_thread + 1];
+				RHS<model> rhs(phi[0], phi[1]);
 				#pragma unroll
 				for(int i_0 = 0, i = 1; i_0 < elements_in_thread; i_0++, i++)
-					pi[i_0] += dt_d[k] * RHS<model>(phi[i - 1], phi[i], phi[i + 1]);
+					pi[i_0] += dt_d[k] * rhs(phi[i - 1], phi[i], phi[i + 1]);
 			}
 		}
 		#pragma unroll
@@ -125,11 +146,12 @@ namespace kg_fpu_toda {
 				#pragma unroll
 				for(uint16_t i = 0; i < chain_length; i++)
 					pairs[i].x += dt_c_k * pairs[i].y;
-				pairs[0].y += dt_d[k] * RHS<model>(pairs[chain_length - 1].x, pairs[0].x, pairs[1].x);
+				RHS<model> rhs(pairs[chain_length - 1].x, pairs[0].x);
+				pairs[0].y += dt_d[k] * rhs(pairs[chain_length - 1].x, pairs[0].x, pairs[1].x);
 				#pragma unroll
 				for(uint16_t i = 1; i < chain_length - 1; i++)
-					pairs[i].y += dt_d[k] * RHS<model>(pairs[i - 1].x, pairs[i].x, pairs[i + 1].x);
-				pairs[chain_length - 1].y += dt_d[k] * RHS<model>(pairs[chain_length - 2].x, pairs[chain_length - 1].x, pairs[0].x);
+					pairs[i].y += dt_d[k] * rhs(pairs[i - 1].x, pairs[i].x, pairs[i + 1].x);
+				pairs[chain_length - 1].y += dt_d[k] * rhs(pairs[chain_length - 2].x, pairs[chain_length - 1].x, pairs[0].x);
 			}
 		}
 		#pragma unroll
@@ -178,18 +200,21 @@ namespace kg_fpu_toda {
 				double previous_pi = pi[chain_idx_0 + size_t(shard_copies)];    //pi[1]
 				phi0 += dt_c_k * pi0;
 				phi1 += dt_c_k * previous_pi;
+				RHS<model> rhs(phi0, phi1);
 				double last_updated_phi[]{ phi0, phi1 };
 				//this appears to be already unrolled by the compiler
 				for(size_t i = chain_idx_0 + 2 * size_t(shard_copies); i <= chain_idx_last; i += shard_copies) {
 					double current_pi = pi[i];
 					double current_updated_phi = (phi[i] += dt_c_k * current_pi);
-					pi[i - shard_copies] = previous_pi + dt_d[k] * RHS<model>(last_updated_phi[0], last_updated_phi[1], current_updated_phi);
+					pi[i - shard_copies] = previous_pi + dt_d[k] * rhs(last_updated_phi[0],
+					                                                       last_updated_phi[1],
+					                                                       current_updated_phi);
 					previous_pi = current_pi;
 					last_updated_phi[0] = last_updated_phi[1];
 					last_updated_phi[1] = current_updated_phi;
 				}
-				pi[chain_idx_last] = previous_pi + dt_d[k] * RHS<model>(last_updated_phi[0], last_updated_phi[1], phi0);
-				pi0 += dt_d[k] * RHS<model>(last_updated_phi[1], phi0, phi1);
+				pi[chain_idx_last] = previous_pi + dt_d[k] * rhs(last_updated_phi[0], last_updated_phi[1], phi0);
+				pi0 += dt_d[k] * rhs(last_updated_phi[1], phi0, phi1);
 			}
 		}
 		phi0 += dt_c[7] * pi0;
