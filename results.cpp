@@ -40,7 +40,8 @@ void results::write_shard(uint64_t t, const double2 *shard) const {
 }
 
 void results::check_entropy(const array<double, 2> &entropies) const {
-	if(isnan(entropies[0]) || isnan(entropies[1])){
+	if(!isfinite(entropies[0]) || !isfinite(entropies[1])){
+		//this happens when we have blow ups or some energies extremely close to zero
 		quit_requested = true;
 		return;
 	}
