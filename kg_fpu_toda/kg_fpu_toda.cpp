@@ -9,42 +9,41 @@ using namespace std;
 
 namespace kg_fpu_toda {
 
-	kg_fpu_toda::configuration gconf;
-
 	template<Model model>
 	int main(int argc, char* argv[]){
 
 		bool use_split_kernel = false;
+		double m, alpha, beta;
 		{
 			using namespace boost::program_options;
 			parse_cmdline parser(string("Options for ") + argv[0]);
-			if (model == KG) parser.options.add_options()(",m", value(&gconf.m)->required(), "linear parameter m");
-			if (model != KG) parser.options.add_options()("alpha", value(&gconf.alpha)->required(), "third order nonlinearity");
+			if (model == KG) parser.options.add_options()(",m", value(&m)->required(), "linear parameter m");
+			if (model != KG) parser.options.add_options()("alpha", value(&alpha)->required(), "third order nonlinearity");
 			parser.options.add_options()
-					("beta", value(&gconf.beta)->required(), "fourth order nonlinearity")
+					("beta", value(&beta)->required(), "fourth order nonlinearity")
 					("split-kernel", "force use of split kernel");
 			try {
 				parser(argc, argv);
+				(::configuration&)gconf = ::gconf;
 				use_split_kernel = parser.vm.count("split-kernel");
 			} catch(const invalid_argument& e) {
 				if(!mpi_global_coord) cerr<<"Error in command line: "<<e.what()<<endl<<parser.options<<endl;
 				return 1;
 			}
 		}
-		(::configuration&)gconf = ::gconf;
 
 		cudalist<double> omega(gconf.chain_length);
 		{
 			vector<double> omega_host(gconf.chain_length);
 			for (int k = 0; k <= int(gconf.chain_length) / 2; k++) {
 				auto s2 = 2 * sin(k * M_PI / gconf.chain_length);
-				omega_host[k] = sqrt(gconf.m + s2 * s2);
+				omega_host[k] = sqrt(m + s2 * s2);
 			}
 			for (int k = -1; k >= -int(gconf.chain_length - 1) / 2; k--) omega_host[gconf.chain_length + k] = omega_host[-k];
 			cudaMemcpy(omega, omega_host.data(), gconf.linenergy_size, cudaMemcpyHostToDevice) && assertcu;
 		}
 
-		results res(gconf.m == 0.);
+		results res(m == 0.);
 
 		enum {
 			s_move = 0, s_dump, s_entropy, s_entropy_aux, s_total
@@ -65,15 +64,15 @@ namespace kg_fpu_toda {
 		cufftSetStream(fft_plan, streams[s_entropy]) && assertcufft;
 
 		//constants
-		double dt_c_host[8], dt_d_host[8], alpha2 = 2 * gconf.alpha, alpha2_inv = 1 / alpha2;
+		double dt_c_host[8], dt_d_host[8], alpha2 = 2 * alpha, alpha2_inv = 1 / alpha2;
 		loopi(8) dt_c_host[i] = symplectic_c[i] * gconf.dt, dt_d_host[i] = symplectic_d[i] * gconf.dt;
 		set_device_object(dt_c_host, dt_c, streams[s_move]);
 		set_device_object(dt_d_host, dt_d, streams[s_move]);
-		set_device_object(gconf.alpha, alpha, streams[s_move]);
-		set_device_object(gconf.m, m, streams[s_move]);
+		set_device_object(alpha, kg_fpu_toda::alpha, streams[s_move]);
+		set_device_object(m, kg_fpu_toda::m, streams[s_move]);
 		set_device_object(alpha2, kg_fpu_toda::alpha2, streams[s_move]);
 		set_device_object(alpha2_inv, kg_fpu_toda::alpha2_inv, streams[s_move]);
-		set_device_object(gconf.beta, beta, streams[s_move]);
+		set_device_object(beta, kg_fpu_toda::beta, streams[s_move]);
 
 		exception_ptr callback_err;
 		completion throttle;
