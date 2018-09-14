@@ -28,7 +28,7 @@ map<std::string, function<int(int argc, char* argv[])>>& programs(){
 	return progs;
 };
 
-static ostringstream errmsg("MPI rank/host name/GPU id: "
+ostringstream errmsg("MPI rank/host name/GPU id: "
                             + to_string(mpi_global_coord) + "/" + mpienv.processor_name() + "/" + to_string(mpi_node_coord)
                             + ": ", ios::ate);
 namespace boost {

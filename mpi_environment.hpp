@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include <sstream>
 #include <functional>
 #include <map>
 #include <csignal>
@@ -54,3 +55,9 @@ namespace boost {
  */
 
 std::map<std::string, std::function<int(int argc, char* argv[])>>& programs();
+
+/*
+ * Additional error info.
+ */
+
+extern std::ostringstream errmsg;
