@@ -6,7 +6,12 @@
 using namespace std;
 
 results::results(bool a0is0): a0is0(a0is0), linenergies(gconf.chain_length),
-                              linenergies_template(gconf.dump_prefix.empty() ? "" : gconf.dump_prefix + "-linenergies-") {
+                              linenergies_template(gconf.dump_prefix.empty() ? "" : gconf.dump_prefix + "-linenergies-"),
+                              entropy_modes_indices(gconf.entropy_modes_indices){
+	if(a0is0 && !entropy_modes_indices.empty() && entropy_modes_indices[0] == 0) {
+		entropy_modes_indices.erase(entropy_modes_indices.begin());
+		if(entropy_modes_indices.size()) throw invalid_argument("too few modes for the calculation of entropy");
+	}
 	if(mpi_global_coord) return;
 	entropydump = ofstream((gconf.dump_prefix.empty() ? "" : gconf.dump_prefix + "-") + "entropy");
 	entropydump.exceptions(ios::eofbit | ios::failbit | ios::badbit);

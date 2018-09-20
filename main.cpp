@@ -45,12 +45,13 @@ parse_cmdline::parse_cmdline(const string& name): options(name){
 	options.add_options()
 			("verbose,v", "print extra informations")
 			("prefix,p", value(&gconf.dump_prefix)->required(), "prefix for dump files")
-			("initial,i", value(&gconf.initial_filename)->required(), "initial state file")
+			("initial,i", value(&initial_filename)->required(), "initial state file")
 			("chain_length,n", value(&gconf.chain_length)->required(), "length of the chain")
 			("copies,c", value(&gconf.copies_total)->required(), "number of ensemble realizations")
 			("steps,s", value(&gconf.steps)->default_value(0), "number of steps in total (0 for infinite)")
 			("entropy,e", value(&gconf.entropy_limit)->default_value(0), "entropy limit")
 			("WTlimit", "limit WT entropy")
+			("entropymask", value(&entropymask_filename), "mask of linenergies to include in entropy calculation")
 			("base,b", value(&gconf.timebase)->default_value(0), "time offset")
 			("dt", value(&gconf.dt)->required(), "time delta")
 			("grouping,k", value(&gconf.steps_grouping)->required(),
@@ -92,11 +93,23 @@ void parse_cmdline::operator()(int argc, char* argv[]) try {
 	cudaMemset(gres.linenergies, 0, sizeof(double) * gconf.chain_length) && assertcu;
 	memset(gres.linenergies_host, 0, sizeof(double) * gconf.chain_length);
 	try {
-		ifstream initial_state(gconf.initial_filename);
+		ifstream initial_state(initial_filename);
 		initial_state.exceptions(ios::failbit | ios::badbit | ios::eofbit);
 		initial_state.seekg(gconf.shard_size * mpi_global_coord).read((char*)*gres.shard_host, gconf.shard_size);
 	} catch(...) {
 		errmsg<<"could not read initial state"<<endl;
+		throw;
+	}
+	if(!entropymask_filename.empty()) try {
+		ifstream entropymask_file(entropymask_filename);
+		entropymask_file.exceptions(ios::failbit | ios::badbit | ios::eofbit);
+		uint16_t mode = 0;
+		loopi(gconf.chain_length){
+			if(entropymask_file.get()) gconf.entropy_modes_indices.push_back(mode);
+			mode++;
+		}
+	} catch(...) {
+		errmsg<<"could not read entropymask file"<<endl;
 		throw;
 	}
 	cudaMemcpy(gres.shard, gres.shard_host, gconf.shard_size, cudaMemcpyHostToDevice) && assertcu;

@@ -21,4 +21,6 @@ struct results {
 private:
 	mutable std::ofstream entropydump;
 	const std::string linenergies_template;
+	std::vector<uint16_t> entropy_modes_indices;
+	std::vector<double> entropy_modes;
 };

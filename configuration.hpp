@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <string>
+#include <vector>
 
 /*
  * Global configuration and resources.
@@ -15,13 +16,14 @@ extern struct configuration {
 	uint32_t steps_grouping, steps_grouping_dump;
 	double dt;
 
-	std::string dump_prefix, initial_filename;
+	std::string dump_prefix;
 	uint64_t steps = 0, timebase = 0;
 	uint16_t copies_total;
 	double entropy_limit;
 	enum { NONE = 0, INFORMATION, WT } entropy_limit_type = NONE;
 
 	size_t linenergy_size, shard_elements, shard_size;
+	std::vector<uint16_t> entropy_modes_indices;
 
 } gconf;
 
@@ -37,6 +39,8 @@ struct parse_cmdline {
 
 	parse_cmdline(const std::string& name);
 	void operator()(int argc, char* argv[]);
+
+	std::string initial_filename, entropymask_filename;
 };
 
 #include "utilities_cuda.cuh"
