@@ -37,6 +37,13 @@ void results::write_linenergies(uint64_t t) const {
 void results::write_shard(uint64_t t, const double2 *shard) const {
 	auto dumpname = (gconf.dump_prefix.empty() ? "" : gconf.dump_prefix + "-");
 	dumpname += to_string(t);
+	if(mpi_global.size() == 1){
+		//avoid request a file lock
+		ofstream dump(dumpname);
+		dump.exceptions(ios::eofbit | ios::failbit | ios::badbit);
+		dump.write((char*)shard, gconf.shard_size);
+		return;
+	}
 	MPI_File dump_mpif;
 	MPI_File_open(MPI_COMM_WORLD, dumpname.c_str(), MPI_MODE_WRONLY | MPI_MODE_CREATE, MPI_INFO_NULL, &dump_mpif) && assertmpi;
 	destructor([&]{ MPI_File_close(&dump_mpif); });
