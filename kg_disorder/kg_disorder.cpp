@@ -90,14 +90,15 @@ namespace kg_disorder {
 		//constants
 		double dt_c_host[8], dt_d_host[8];
 		loopi(8) dt_c_host[i] = symplectic_c[i] * gconf.dt, dt_d_host[i] = symplectic_d[i] * gconf.dt;
-		set_device_object(dt_c_host, dt_c, streams[s_move]);
-		set_device_object(dt_d_host, dt_d, streams[s_move]);
-		set_device_object(beta, kg_disorder::beta, streams[s_move]);
+		set_device_object(dt_c_host, dt_c);
+		set_device_object(dt_d_host, dt_d);
+		set_device_object(beta, kg_disorder::beta);
+
+		plane2split splitter(gconf.chain_length, gconf.shard_copies);
+		splitter.split(gres.shard, streams[s_move]);
 
 		exception_ptr callback_err;
 		completion throttle;
-		plane2split splitter(gconf.chain_length, gconf.shard_copies);
-		splitter.split(gres.shard, streams[s_move]);
 		uint64_t t = gconf.timebase;
 		auto dumper = [&]{
 			if(use_split_kernel) splitter.plane(gres.shard, streams[s_move], streams[s_dump]);
