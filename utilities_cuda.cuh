@@ -106,29 +106,29 @@ template<typename T> T* get_device_address(T& on_device){
 	return address;
 }
 
-template<typename T> T get_device_object(const T& on_device, cudaStream_t stream){
+template<typename T> T get_device_object(const T& on_device, cudaStream_t stream = 0){
 	T on_host;
 	cudaMemcpyFromSymbolAsync((void*)&on_host, (const void*)&on_device, sizeof(T), 0, cudaMemcpyDeviceToHost, stream) && assertcu;
 	cudaStreamSynchronize(stream) && assertcu;
 	return on_host;
 }
 
-template<typename T> void get_device_object(const T& on_device, T& on_host, cudaStream_t stream){
+template<typename T> void get_device_object(const T& on_device, T& on_host, cudaStream_t stream = 0){
 	cudaMemcpyFromSymbolAsync((void*)&on_host, (const void*)&on_device, sizeof(T), 0, cudaMemcpyDeviceToHost, stream) && assertcu;
 }
 
-template<typename T, size_t len> std::array<T, len> get_device_object(const T (&on_device)[len], cudaStream_t stream){
+template<typename T, size_t len> std::array<T, len> get_device_object(const T (&on_device)[len], cudaStream_t stream = 0){
 	std::array<T, len> on_host;
 	cudaMemcpyFromSymbolAsync((void*)&on_host, (const void*)&on_device, sizeof(T[len]), 0, cudaMemcpyDeviceToHost, stream) && assertcu;
 	cudaStreamSynchronize(stream) && assertcu;
 	return on_host;
 }
 
-template<typename T> void set_device_object(const T& on_host, T& on_device, cudaStream_t stream){
+template<typename T> void set_device_object(const T& on_host, T& on_device, cudaStream_t stream = 0){
 	cudaMemcpyToSymbolAsync((const void*)&on_device, (const void*)&on_host, sizeof(T), 0, cudaMemcpyHostToDevice, stream) && assertcu;
 }
 
-template<typename T> void memset_device_object(T& on_device, int value, cudaStream_t stream){
+template<typename T> void memset_device_object(T& on_device, int value, cudaStream_t stream = 0){
 	void* addr;
 	cudaGetSymbolAddress(&addr, (const void*)&on_device) && assertcu;
 	cudaMemsetAsync(addr, value, sizeof(T), stream) && assertcu;
