@@ -358,3 +358,21 @@ private:
 	cudalist<double2> planar_transposed;
 	cublasHandle_t handle = 0;
 };
+
+/*
+ * Complex math.
+ */
+
+__device__ inline cufftDoubleComplex operator*(const cufftDoubleComplex& a, const cufftDoubleComplex& b){
+	return { a.x * b.x - a.y * b.y, a.x * b.y + a.y * b.x };
+}
+
+__device__ inline cufftDoubleComplex& operator*=(cufftDoubleComplex& a, const cufftDoubleComplex& b){
+	return (a = a * b);
+}
+
+__device__ inline cufftDoubleComplex e_pow_I(double x){
+	double sin, cos;
+	sincos(x, &sin, &cos);
+	return { cos, sin };
+}
