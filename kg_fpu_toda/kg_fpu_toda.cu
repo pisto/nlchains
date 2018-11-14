@@ -273,10 +273,11 @@ namespace kg_fpu_toda {
 			const double2* fft_pis, const double* omegas){
 		uint16_t idx = blockIdx.x * blockDim.x + threadIdx.x;
 		if(idx >= chainlen) return;
+		fft_phis += idx, fft_pis += idx;
 		double sum = 0, omega = omegas[idx];
 		auto square = [](double x){ return x * x; };
-		for(uint16_t c = 0; c < copies; c++){
-			auto fft_phi = fft_phis[c * chainlen + idx], fft_pi = fft_pis[c * chainlen + idx];
+		for(uint16_t c = 0; c < copies; c++, fft_phis += chainlen, fft_pis += chainlen){
+			auto fft_phi = *fft_phis, fft_pi = *fft_pis;
 			double energy = (square(fft_phi.x) + square(fft_phi.y)) * omega;
 			energy += 2 * (fft_phi.y * fft_pi.x - fft_phi.x * fft_pi.y);
 			energy *= omega;
