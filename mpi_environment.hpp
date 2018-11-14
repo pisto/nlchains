@@ -50,14 +50,10 @@ namespace boost {
 	}
 }
 
+extern const std::string process_ident;
+
 /*
  * Associate subprograms to --program argument.
  */
 
 std::map<std::string, std::function<int(int argc, char* argv[])>>& programs();
-
-/*
- * Additional error info.
- */
-
-extern std::ostringstream errmsg;

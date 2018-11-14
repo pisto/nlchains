@@ -41,6 +41,9 @@ struct parse_cmdline {
 	void operator()(int argc, char* argv[]);
 
 	std::string initial_filename, entropymask_filename;
+	struct help_quit {
+		const boost::program_options::options_description options;
+	};
 };
 
 #include "utilities_cuda.cuh"

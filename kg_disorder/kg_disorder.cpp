@@ -19,27 +19,23 @@ namespace kg_disorder {
 		{
 			using namespace boost::program_options;
 			string m_fname;
-			parse_cmdline parser(string("Options for ") + argv[0]);
+			parse_cmdline parser("Options for "s + argv[0]);
 			parser.options.add_options()
 					(",m", value(&m_fname)->required(), "linear parameter m filename")
 					("beta", value(&beta)->required(), "fourth order nonlinearity")
 					("split-kernel", "force use of split kernel");
-			try {
-				parser(argc, argv);
-				use_split_kernel = parser.vm.count("split-kernel");
+			parser(argc, argv);
+			use_split_kernel = parser.vm.count("split-kernel");
 
+			mp2_host.resize(gconf.chain_length);
+			try {
 				ifstream ms(m_fname);
 				ms.exceptions(ios::failbit | ios::badbit | ios::eofbit);
-				mp2_host.resize(gconf.chain_length);
 				ms.read((char*)mp2_host.memptr(), gconf.chain_length * sizeof(double));
-				mp2_host += 2;
 			} catch(const ios_base::failure& e) {
-				errmsg<<"could not read m file"<<endl;
-				throw;
-			} catch(const invalid_argument& e) {
-				if(!mpi_global_coord) cerr<<"Error in command line: "<<e.what()<<endl<<parser.options<<endl;
-				return 1;
+				throw ios::failure("could not read m file ("s + e.what() + ")", e.code());
 			}
+			mp2_host += 2;
 		}
 
 		cudalist<double> mp2(gconf.chain_length),

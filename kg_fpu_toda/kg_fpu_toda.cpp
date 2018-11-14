@@ -16,19 +16,14 @@ namespace kg_fpu_toda {
 		double m, alpha, beta;
 		{
 			using namespace boost::program_options;
-			parse_cmdline parser(string("Options for ") + argv[0]);
+			parse_cmdline parser("Options for "s + argv[0]);
 			if (model == KG) parser.options.add_options()(",m", value(&m)->required(), "linear parameter m");
 			if (model != KG) parser.options.add_options()("alpha", value(&alpha)->required(), "third order nonlinearity");
 			parser.options.add_options()
 					("beta", value(&beta)->required(), "fourth order nonlinearity")
 					("split-kernel", "force use of split kernel");
-			try {
-				parser(argc, argv);
-				use_split_kernel = parser.vm.count("split-kernel");
-			} catch(const invalid_argument& e) {
-				if(!mpi_global_coord) cerr<<"Error in command line: "<<e.what()<<endl<<parser.options<<endl;
-				return 1;
-			}
+			parser(argc, argv);
+			use_split_kernel = parser.vm.count("split-kernel");
 		}
 
 		cudalist<double> omega(gconf.chain_length);

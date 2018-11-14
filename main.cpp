@@ -23,20 +23,19 @@ const int mpi_global_coord = mpi_global.rank(), mpi_node_coord = []{
 	return communicator(node, comm_take_ownership).rank();
 }();
 
+const string process_ident("MPI rank/hostname/GPU: " + to_string(mpi_global_coord) + "/" + mpienv.processor_name() + "/" + to_string(mpi_node_coord));
+
 map<std::string, function<int(int argc, char* argv[])>>& programs(){
 	static map<string, function<int(int argc, char* argv[])>> progs;
 	return progs;
 };
 
-ostringstream errmsg("MPI rank/host name/GPU id: "
-                            + to_string(mpi_global_coord) + "/" + mpienv.processor_name() + "/" + to_string(mpi_node_coord)
-                            + ": ", ios::ate);
 namespace boost {
 	void assertion_failed(const char* expr, const char* function, const char* file, long line) {
-		throw logic_error(string("Boost assert failed: ") + expr + ", at " + file + ":" + to_string(line) + " in " + function);
+		throw logic_error("Boost assert failed: "s + expr + ", at " + file + ":" + to_string(line) + " in " + function);
 	}
 	void assertion_failed_msg(const char* expr, const char* msg, const char* function, const char* file, long line) {
-		throw logic_error(string("Boost assert failed (") + msg + "): " + "" + expr + ", at " + file + ":" + to_string(line) + " in " + function);
+		throw logic_error("Boost assert failed ("s + msg + "): " + "" + expr + ", at " + file + ":" + to_string(line) + " in " + function);
 	}
 }
 
@@ -61,8 +60,13 @@ parse_cmdline::parse_cmdline(const string& name): options(name){
 }
 
 void parse_cmdline::operator()(int argc, char* argv[]) try {
-	store(boost::program_options::parse_command_line(argc, argv, options), vm);
-	notify(vm);
+	if(argc == 1) throw help_quit{options};
+	try {
+		store(boost::program_options::parse_command_line(argc, argv, options), vm);
+		notify(vm);
+	} catch(const boost::program_options::error& e){
+		throw invalid_argument(e.what());
+	}
 
 	//check user arguments
 	gconf.verbose = vm.count("verbose");
@@ -96,77 +100,86 @@ void parse_cmdline::operator()(int argc, char* argv[]) try {
 		ifstream initial_state(initial_filename);
 		initial_state.exceptions(ios::failbit | ios::badbit | ios::eofbit);
 		initial_state.seekg(gconf.shard_size * mpi_global_coord).read((char*)*gres.shard_host, gconf.shard_size);
-	} catch(...) {
-		errmsg<<"could not read initial state"<<endl;
-		throw;
+	} catch(const ios::failure& e) {
+		throw ios::failure("could not read initial state ("s + e.what() + ")", e.code());
 	}
 	if(!entropymask_filename.empty()) try {
-		ifstream entropymask_file(entropymask_filename);
-		entropymask_file.exceptions(ios::failbit | ios::badbit | ios::eofbit);
-		uint16_t mode = 0;
-		loopi(gconf.chain_length){
-			if(entropymask_file.get()) gconf.entropy_modes_indices.push_back(mode);
-			mode++;
+			ifstream entropymask_file(entropymask_filename);
+			entropymask_file.exceptions(ios::failbit | ios::badbit | ios::eofbit);
+			uint16_t mode = 0;
+			loopi(gconf.chain_length){
+				if(entropymask_file.get()) gconf.entropy_modes_indices.push_back(mode);
+				mode++;
+			}
+		} catch(const ios::failure& e) {
+			throw ios::failure("could not read entropy mask file ("s + e.what() + ")", e.code());
 		}
-	} catch(...) {
-		errmsg<<"could not read entropymask file"<<endl;
-		throw;
-	}
 	cudaMemcpy(gres.shard, gres.shard_host, gconf.shard_size, cudaMemcpyHostToDevice) && assertcu;
 
-} catch(const boost::program_options::error& e){
-	throw invalid_argument(e.what());
+} catch(const invalid_argument& e){
+	ostringstream fmtmsg;
+	fmtmsg<<e.what()<<endl<<options;
+	throw invalid_argument(fmtmsg.str());
 }
 
 
-int main(int argc, char** argv) {
-	//whether catching these signal works is MPI-implementation dependent
-	for(int s: { SIGINT, SIGTERM }) signal(s, [](int){ quit_requested = true; });
-	try {
-
-		if (!programs().size()) throw logic_error("nlchains compiled without any subprogram!");
-		string program_names;
-		for (auto kv: programs()) {
-			if (!program_names.empty()) program_names += ", ";
-			program_names += kv.first;
-		}
-		if (argc == 1) {
-			cerr << "Please specify as first argument the subprogram to run: " << program_names << endl;
-			return 0;
-		}
-		auto program = programs().find(argv[1]);
-		if (program == programs().end()) throw invalid_argument("please specific a valid program among " + program_names);
-
-		cudaSetDevice(mpi_node_coord) && assertcu;
-		destructor([]{
-			destructor(cudaDeviceSynchronize);
-			gres = resources();
-			cudaDeviceReset();
-		});
-		{
-			cudaDeviceProp dev_props;
-			cudaGetDeviceProperties(&dev_props, mpi_node_coord) && assertcu;
-			ostringstream info;
-			info<<"GPU "<<dev_props.name<<" (id "<<mpi_node_coord<<") on host "<<mpienv.processor_name()
-			    <<" clocks core/mem "<<dev_props.clockRate / 1000<<'/'<<dev_props.memoryClockRate / 1000<<endl;
-			loopi(mpi_global.size()){
-				if(int(i) == mpi_global_coord) cerr<<info.str();
-				mpi_global.barrier();
-			}
-		}
-
-		return program->second(argc - 1, argv + 1);
-
-	} catch(const ios_base::failure& e) {
-		errmsg<<"I/O fatal error: "<<e.what()<<" ("<<e.code().message()<<")"<<endl;
-	} catch(const system_error& e) {
-		errmsg<<"fatal error: "<<e.what()<<" ("<<e.code().message()<<")"<<endl;
-	} catch(const std::exception& e) {
-		errmsg<<"fatal error ("<<boost::core::demangled_name(typeid(e))<<"): "<<e.what()<<endl;
-	} catch(...) {
-		errmsg<<"unspecified fatal error"<<endl;
-	}
-	cerr<<errmsg.str();
+static int print_fatal_error(const string &msg){
+	ostringstream fmtmsg;
+	fmtmsg<<process_ident<<": "<<msg<<endl;
+	cerr<<fmtmsg.str();
 	return 1;
+}
 
+int main(int argc, char** argv) try {
+	//whether catching these signal works is MPI-implementation dependent
+	for (int s: {SIGINT, SIGTERM}) signal(s, [](int) { quit_requested = true; });
+
+	if (!programs().size()) throw logic_error("nlchains compiled without any subprogram!");
+	string program_names;
+	for (auto kv: programs()) {
+		if (!program_names.empty()) program_names += ", ";
+		program_names += kv.first;
+	}
+	if (argc == 1) {
+		if (!mpi_global_coord)
+			cerr << "Please specify as first argument the subprogram to run: " << program_names << endl;
+		return 0;
+	}
+	auto program = programs().find(argv[1]);
+	if (program == programs().end()) throw invalid_argument("please specific a valid program among " + program_names);
+
+	cudaSetDevice(mpi_node_coord) && assertcu;
+	destructor([] {
+		destructor(cudaDeviceSynchronize);
+		gres = resources();
+		cudaDeviceReset();
+	});
+	{
+		cudaDeviceProp dev_props;
+		cudaGetDeviceProperties(&dev_props, mpi_node_coord) && assertcu;
+		ostringstream info;
+		info << "GPU " << dev_props.name << " (id " << mpi_node_coord << ") on host " << mpienv.processor_name()
+		     << " clocks core/mem " << dev_props.clockRate / 1000 << '/' << dev_props.memoryClockRate / 1000 << endl;
+		loopi(mpi_global.size()) {
+			if (int(i) == mpi_global_coord) cerr << info.str();
+			mpi_global.barrier();
+		}
+	}
+
+	return program->second(argc - 1, argv + 1);
+
+} catch(const parse_cmdline::help_quit& e){
+	if(!mpi_global_coord) cerr<<e.options<<endl;
+	return 0;
+} catch(const ios_base::failure& e) {
+	return print_fatal_error("I/O error, "s + e.what() + " (" + e.code().message() + ")");
+} catch(const system_error& e) {
+	return print_fatal_error("system error, "s + e.code().message());
+} catch(const invalid_argument& e) {
+	if(mpi_global_coord) return 1;
+	return print_fatal_error("invalid argument, "s + e.what());
+} catch(const std::exception& e) {
+	return print_fatal_error("exception "s + boost::core::demangled_name(typeid(e)) + ", " + e.what());
+} catch(...) {
+	return print_fatal_error("unspecified fatal exception");
 }
