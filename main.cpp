@@ -102,8 +102,8 @@ void parse_cmdline::operator()(int argc, char* argv[]) try {
 		ifstream initial_state(initial_filename);
 		initial_state.exceptions(ios::failbit | ios::badbit | ios::eofbit);
 		initial_state.seekg(gconf.shard_size * mpi_global_coord).read((char*)*gres.shard_host, gconf.shard_size);
-	} catch(const ios::failure& e) {
-		throw ios::failure("could not read initial state ("s + e.what() + ")", e.code());
+	} catch(const ios_base::failure& e) {
+		throw ios_base::failure("could not read initial state ("s + e.what() + ")", e.code());
 	}
 	if(!entropymask_filename.empty()) try {
 			ifstream entropymask_file(entropymask_filename);
@@ -113,8 +113,8 @@ void parse_cmdline::operator()(int argc, char* argv[]) try {
 				if(entropymask_file.get()) gconf.entropy_modes_indices.push_back(mode);
 				mode++;
 			}
-		} catch(const ios::failure& e) {
-			throw ios::failure("could not read entropy mask file ("s + e.what() + ")", e.code());
+		} catch(const ios_base::failure& e) {
+			throw ios_base::failure("could not read entropy mask file ("s + e.what() + ")", e.code());
 		}
 	cudaMemcpy(gres.shard, gres.shard_host, gconf.shard_size, cudaMemcpyHostToDevice) && assertcu;
 
@@ -171,7 +171,7 @@ int main(int argc, char** argv) try {
 	return program->second(argc - 1, argv + 1);
 
 } catch(const parse_cmdline::help_quit& e){
-	if(!mpi_global_coord) cerr<<e.options<<endl;
+	if(!mpi_global_coord) cerr<<e.options;
 	return 0;
 } catch(const ios_base::failure& e) {
 	return print_fatal_error("I/O error, "s + e.what() + " (" + e.code().message() + ")");
