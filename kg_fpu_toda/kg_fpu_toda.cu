@@ -62,12 +62,12 @@ namespace kg_fpu_toda {
 		constexpr int elements_in_thread = optimized_chain_length / 32 + !!(optimized_chain_length % 32),
 				full_lanes = optimized_chain_length % 32 ?: 32;
 
-		int idx = blockIdx.x * blockDim.x + threadIdx.x,
+		uint32_t idx = blockIdx.x * blockDim.x + threadIdx.x,
 				my_copy = idx / 32, lane = idx % 32, lane_left = (lane + 31) % 32, lane_right = (lane + 1) % 32;
 		bool full_lane = lane < full_lanes;
 		if(my_copy >= copies) return;
 		//offset copy
-		planar += my_copy * size_t(optimized_chain_length);
+		planar += my_copy * optimized_chain_length;
 		/*
 		 * Arrangement is (e.g. for optimized_chain_length = 35)
 		 * lane idx            |0     |1     |2     |3     |4     .... |31
@@ -130,10 +130,10 @@ namespace kg_fpu_toda {
 	 */
 	template<Model model, uint16_t chain_length>
 	__global__ void move_chain_in_thread(double2* planar, uint32_t steps_grouping, uint16_t copies){
-		uint16_t my_copy = blockIdx.x * blockDim.x + threadIdx.x;
+		uint32_t my_copy = blockIdx.x * blockDim.x + threadIdx.x;
 		if(my_copy >= copies) return;
 		//offset copy
-		planar += my_copy * size_t(chain_length);
+		planar += my_copy * chain_length;
 		double2 pairs[chain_length];
 		#pragma unroll
 		for(uint16_t i = 0; i < chain_length; i++) pairs[i] = planar[i];
@@ -188,23 +188,22 @@ namespace kg_fpu_toda {
 	 * block size is actually determined and printed once at runtime, and setting the number of copies
 	 */
 	template<Model model>
-	__global__ void move_split(double* phi, double* pi, uint16_t chainlen, uint16_t shard_copies, uint32_t steps_grouping){
-		auto chain_idx_0 = blockIdx.x * blockDim.x + threadIdx.x;
+	__global__ void move_split(double* phi, double* pi, uint32_t chainlen, uint32_t shard_copies, uint32_t steps_grouping){
+		uint32_t chain_idx_0 = blockIdx.x * blockDim.x + threadIdx.x, chain_idx_last = chain_idx_0 + (chainlen - 1) * shard_copies;
 		if(chain_idx_0 >= shard_copies) return;
-		size_t chain_idx_last = chain_idx_0 + (chainlen - 1) * size_t(shard_copies);
 		//these values are handled outside of the inner loop, can be saved in registers to avoid memory access
-		double phi0 = phi[chain_idx_0], phi1 = phi[chain_idx_0 + size_t(shard_copies)], pi0 = pi[chain_idx_0];
+		double phi0 = phi[chain_idx_0], phi1 = phi[chain_idx_0 + shard_copies], pi0 = pi[chain_idx_0];
 		for(uint32_t i = 0; i < steps_grouping; i++){
 			for(int k = 0; k < 7; k++){
 				double dt_c_k = dt_c[k];
 				if(i && !k) dt_c_k *= 2;    //merge last and first evolution of phi variable, since pi is not update in 8th steps of 6th order Yoshida
-				double previous_pi = pi[chain_idx_0 + size_t(shard_copies)];    //pi[1]
+				double previous_pi = pi[chain_idx_0 + shard_copies];    //pi[1]
 				phi0 += dt_c_k * pi0;
 				phi1 += dt_c_k * previous_pi;
 				RHS<model> rhs(phi0, phi1);
 				double last_updated_phi[]{ phi0, phi1 };
 				//this appears to be already unrolled by the compiler
-				for(size_t i = chain_idx_0 + 2 * size_t(shard_copies); i <= chain_idx_last; i += shard_copies) {
+				for(uint32_t i = chain_idx_0 + 2 * shard_copies; i <= chain_idx_last; i += shard_copies) {
 					double current_pi = pi[i];
 					double current_updated_phi = (phi[i] += dt_c_k * current_pi);
 					pi[i - shard_copies] = previous_pi + dt_d[k] * rhs(last_updated_phi[0],
@@ -219,11 +218,11 @@ namespace kg_fpu_toda {
 			}
 		}
 		phi0 += dt_c[7] * pi0;
-		phi1 += dt_c[7] * pi[chain_idx_0 + size_t(shard_copies)];
-		for(size_t i = chain_idx_0 + 2 * size_t(shard_copies); i <= chain_idx_last; i += shard_copies) phi[i] += dt_c[7] * pi[i];
+		phi1 += dt_c[7] * pi[chain_idx_0 + shard_copies];
+		for(uint32_t i = chain_idx_0 + 2 * shard_copies; i <= chain_idx_last; i += shard_copies) phi[i] += dt_c[7] * pi[i];
 
 		phi[chain_idx_0] = phi0;
-		phi[chain_idx_0 + size_t(shard_copies)] = phi1;
+		phi[chain_idx_0 + shard_copies] = phi1;
 		pi[chain_idx_0] = pi0;
 	}
 
@@ -243,7 +242,7 @@ namespace kg_fpu_toda {
 					(gres.shard, gconf.steps_grouping, gconf.shard_copies);
 			} else if (gconf.chain_length == optimized_chain_length) {
 				static auto kinfo = make_kernel_info_name(move_chain_in_warp<model>, std::string("move_chain_in_warp<") + std::to_string(int(model)) + ">");
-				auto linear_config = kinfo.linear_configuration(size_t(gconf.shard_copies) * 32, gconf.verbose);
+				auto linear_config = kinfo.linear_configuration(uint32_t(gconf.shard_copies) * 32, gconf.verbose);
 				kinfo.k<<<linear_config.x, linear_config.y, 0, stream>>>
 					(gres.shard, gconf.steps_grouping, gconf.shard_copies);
 			} else {
@@ -271,7 +270,7 @@ namespace kg_fpu_toda {
 	__global__ void
 	make_linenergies_kernel(uint16_t chainlen, uint16_t copies, double* linenergies, const double2* fft_phis,
 			const double2* fft_pis, const double* omegas){
-		uint16_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+		uint32_t idx = blockIdx.x * blockDim.x + threadIdx.x;
 		if(idx >= chainlen) return;
 		fft_phis += idx, fft_pis += idx;
 		double sum = 0, omega = omegas[idx];

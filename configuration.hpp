@@ -13,16 +13,16 @@ extern struct configuration {
 	bool verbose;
 
 	uint16_t chain_length, shard_copies;
+	uint32_t copies_total, shard_elements;
 	uint32_t steps_grouping, steps_grouping_dump;
 	double dt;
 
 	std::string dump_prefix;
 	uint64_t steps = 0, timebase = 0;
-	uint16_t copies_total;
 	double entropy_limit;
 	enum { NONE = 0, INFORMATION, WT } entropy_limit_type = NONE;
 
-	size_t linenergy_size, shard_elements, shard_size;
+	size_t linenergy_size, shard_size;
 	std::vector<uint16_t> entropy_modes_indices;
 
 } gconf;

@@ -355,7 +355,7 @@ struct plane2split {
 	completion plane(double2* planar, cudaStream_t stream = 0) const { return plane(planar, stream, stream); }
 
 	const uint16_t chainlen, shard_copies;
-	const size_t elements;
+	const uint32_t elements;
 	const cudalist<double> real_transposed;
 	double* const img_transposed;
 private:

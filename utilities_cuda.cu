@@ -7,21 +7,21 @@ int cudaOccupancyMaxPotentialBlockSize_void(void* kern, int maxblock){
 	return threads;
 }
 
-__global__ void split_kernel(size_t elements, const double2* planar, double* real, double* img){
-	auto idx = blockDim.x * blockIdx.x + threadIdx.x;
+__global__ void split_kernel(uint32_t elements, const double2* planar, double* real, double* img){
+	uint32_t idx = blockDim.x * blockIdx.x + threadIdx.x;
 	if(idx >= elements) return;
 	auto pair = planar[idx];
 	real[idx] = pair.x, img[idx] = pair.y;
 }
 
-__global__ void unsplit_kernel(size_t elements, const double* real, const double* img, double2* planar){
-	auto idx = blockDim.x * blockIdx.x + threadIdx.x;
+__global__ void unsplit_kernel(uint32_t elements, const double* real, const double* img, double2* planar){
+	uint32_t idx = blockDim.x * blockIdx.x + threadIdx.x;
 	if(idx >= elements) return;
 	planar[idx] = { real[idx], img[idx] };
 }
 
 plane2split::plane2split(uint16_t chainlen, uint16_t shard_copies):
-		chainlen(chainlen), shard_copies(shard_copies), elements(size_t(shard_copies) * chainlen),
+		chainlen(chainlen), shard_copies(shard_copies), elements(uint32_t(shard_copies) * chainlen),
 		real_transposed(elements * 2), img_transposed((double*)real_transposed + elements), planar_transposed(elements) {
 	cublasCreate(&handle) && assertcublas;
 }

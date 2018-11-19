@@ -24,18 +24,18 @@ namespace kg_disorder {
 		constexpr int elements_in_thread = optimized_chain_length / 32 + !!(optimized_chain_length % 32),
 				full_lanes = optimized_chain_length % 32 ?: 32;
 
-		int idx = blockIdx.x * blockDim.x + threadIdx.x,
+		uint32_t idx = blockIdx.x * blockDim.x + threadIdx.x,
 				my_copy = idx / 32, lane = idx % 32, lane_left = (lane + 31) % 32, lane_right = (lane + 1) % 32;
 		bool full_lane = lane < full_lanes;
 		if(my_copy >= copies) return;
 		//offset copy
-		planar += my_copy * size_t(optimized_chain_length);
+		planar += my_copy * optimized_chain_length;
 		double phi[elements_in_thread + 2], pi[elements_in_thread];
 		__shared__ double mp2_shmem[elements_in_thread][32];
 		phi[elements_in_thread] = 0, pi[elements_in_thread - 1] = 0;
 		if(threadIdx.x < 32) mp2_shmem[elements_in_thread - 1][lane] = 0;
 		//offset previous threads
-		size_t thread_offset = full_lane ? lane * elements_in_thread : full_lanes * elements_in_thread + (lane - full_lanes) * (elements_in_thread - 1);
+		uint32_t thread_offset = full_lane ? lane * elements_in_thread : full_lanes * elements_in_thread + (lane - full_lanes) * (elements_in_thread - 1);
 		planar += thread_offset;
 		mp2_gmem += thread_offset;
 		#pragma unroll
@@ -87,10 +87,10 @@ namespace kg_disorder {
 	 */
 	template<uint16_t chain_length>
 	__global__ void move_chain_in_thread(double2* planar, uint32_t steps_grouping, uint16_t copies){
-		uint16_t my_copy = blockIdx.x * blockDim.x + threadIdx.x;
+		uint32_t my_copy = blockIdx.x * blockDim.x + threadIdx.x;
 		if(my_copy >= copies) return;
 		//offset copy
-		planar += my_copy * size_t(chain_length);
+		planar += my_copy * chain_length;
 		double2 pairs[chain_length];
 		#pragma unroll
 		for(uint16_t i = 0; i < chain_length; i++) pairs[i] = planar[i];
@@ -139,23 +139,22 @@ namespace kg_disorder {
 	 * memory array if the constant buffer is large enough to hold all the linear parameter values,
 	 * otherwise it resides in global memory.
 	 */
-	__global__ void move_split(double* phi, double* pi, const double* mp2, uint16_t chainlen, uint16_t shard_copies, uint32_t steps_grouping){
-		auto chain_idx_0 = blockIdx.x * blockDim.x + threadIdx.x;
+	__global__ void move_split(double* phi, double* pi, const double* mp2, uint32_t chainlen, uint32_t shard_copies, uint32_t steps_grouping){
+		uint32_t chain_idx_0 = blockIdx.x * blockDim.x + threadIdx.x, chain_idx_last = chain_idx_0 + (chainlen - 1) * shard_copies;
 		if(chain_idx_0 >= shard_copies) return;
-		size_t chain_idx_last = chain_idx_0 + (chainlen - 1) * size_t(shard_copies);
 		//these values are handled outside of the inner loop, can be saved in registers to avoid memory access
-		double phi0 = phi[chain_idx_0], phi1 = phi[chain_idx_0 + size_t(shard_copies)], pi0 = pi[chain_idx_0];
+		double phi0 = phi[chain_idx_0], phi1 = phi[chain_idx_0 + shard_copies], pi0 = pi[chain_idx_0];
 		for(uint32_t i = 0; i < steps_grouping; i++){
 			for(int k = 0; k < 7; k++){
 				double dt_c_k = dt_c[k];
 				if(i && !k) dt_c_k *= 2;    //merge last and first evolution of phi variable, since pi is not update in 8th steps of 6th order Yoshida
-				double previous_pi = pi[chain_idx_0 + size_t(shard_copies)];    //pi[1]
+				double previous_pi = pi[chain_idx_0 + shard_copies];    //pi[1]
 				phi0 += dt_c_k * pi0;
 				phi1 += dt_c_k * previous_pi;
 				double last_updated_phi[]{ phi0, phi1 };
 				//this appears to be already unrolled by the compiler
 				auto mp2_i = mp2 + 1;
-				for(size_t i = chain_idx_0 + 2 * size_t(shard_copies); i <= chain_idx_last; i += shard_copies, mp2_i++) {
+				for(uint32_t i = chain_idx_0 + 2 * shard_copies; i <= chain_idx_last; i += shard_copies, mp2_i++) {
 					double current_pi = pi[i];
 					double current_updated_phi = (phi[i] += dt_c_k * current_pi);
 					pi[i - shard_copies] = previous_pi + dt_d[k] * rhs_KG(last_updated_phi[0],
@@ -171,11 +170,11 @@ namespace kg_disorder {
 			}
 		}
 		phi0 += dt_c[7] * pi0;
-		phi1 += dt_c[7] * pi[chain_idx_0 + size_t(shard_copies)];
-		for(size_t i = chain_idx_0 + 2 * size_t(shard_copies); i <= chain_idx_last; i += shard_copies) phi[i] += dt_c[7] * pi[i];
+		phi1 += dt_c[7] * pi[chain_idx_0 + shard_copies];
+		for(uint32_t i = chain_idx_0 + 2 * shard_copies; i <= chain_idx_last; i += shard_copies) phi[i] += dt_c[7] * pi[i];
 
 		phi[chain_idx_0] = phi0;
-		phi[chain_idx_0 + size_t(shard_copies)] = phi1;
+		phi[chain_idx_0 + shard_copies] = phi1;
 		pi[chain_idx_0] = pi0;
 	}
 
@@ -197,7 +196,7 @@ namespace kg_disorder {
 					(gres.shard, gconf.steps_grouping, gconf.shard_copies);
 			} else if (gconf.chain_length == optimized_chain_length) {
 				static auto kinfo = make_kernel_info(move_chain_in_warp);
-				auto linear_config = kinfo.linear_configuration(size_t(gconf.shard_copies) * 32, gconf.verbose);
+				auto linear_config = kinfo.linear_configuration(uint32_t(gconf.shard_copies) * 32, gconf.verbose);
 				kinfo.k<<<linear_config.x, linear_config.y, 0, stream>>>
 					(gres.shard, mp2_gmem, gconf.steps_grouping, gconf.shard_copies);
 			} else {
@@ -219,12 +218,12 @@ namespace kg_disorder {
 
 
 	__global__ void make_linenergies_kernel(const double* projection_phi, const double* projection_pi, uint16_t chain_length, uint16_t shard_copies, double* linenergies){
-		size_t idx = (size_t(blockDim.x * blockIdx.x) + threadIdx.x) / 32;
+		uint32_t idx = (blockDim.x * blockIdx.x + threadIdx.x) / 32;
 		if(idx >= chain_length) return;
 		projection_phi += idx * shard_copies;
 		projection_pi += idx * shard_copies;
 		double sum = 0;
-		for(size_t c = threadIdx.x % 32; c < shard_copies; c += 32){
+		for(uint32_t c = threadIdx.x % 32; c < shard_copies; c += 32){
 			auto p_phi = projection_phi[c], p_pi = projection_pi[c];
 			sum += p_phi * p_phi + p_pi * p_pi;
 		}
@@ -239,7 +238,7 @@ namespace kg_disorder {
 
 	completion make_linenergies(const double* projection_phi, const double* projection_pi, cudaStream_t stream){
 		static auto kinfo = make_kernel_info(make_linenergies_kernel);
-		auto linear_config = kinfo.linear_configuration(gconf.chain_length * 32, gconf.verbose);
+		auto linear_config = kinfo.linear_configuration(uint32_t(gconf.chain_length) * 32, gconf.verbose);
 		kinfo.k<<<linear_config.x, linear_config.y, 0, stream>>>
 			(projection_phi, projection_pi, gconf.chain_length, gconf.shard_copies, gres.linenergies_host);
 		cudaGetLastError() && assertcu;

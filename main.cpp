@@ -88,7 +88,9 @@ void parse_cmdline::operator()(int argc, char* argv[]) try {
 		throw invalid_argument("timebase must be less than steps");
 
 	gconf.linenergy_size = sizeof(double) * gconf.chain_length;
-	gconf.shard_elements = size_t(gconf.chain_length) * gconf.shard_copies;
+	if(uint64_t(gconf.chain_length) * gconf.shard_copies >= 0x40000000ULL)
+		throw invalid_argument("(chain_length * copies) / total_GPUs must be <= 2^30");
+	gconf.shard_elements = uint32_t(gconf.chain_length) * gconf.shard_copies;
 	gconf.shard_size = sizeof(double2) * gconf.shard_elements;
 	gres.shard = cudalist<double2>(gconf.shard_elements);
 	gres.linenergies = cudalist<double>(gconf.chain_length);
