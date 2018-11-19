@@ -256,25 +256,29 @@ private:
  */
 
 #include <iostream>
+#include <exception>
+#include <memory>
 
-template<typename L> void add_cuda_callback(cudaStream_t stream, L& lambda){
+template<typename L>
+struct cuda_callback_data {
+	std::exception_ptr& callback_err;
+	L lambda;
+};
+
+template<typename L> void add_cuda_callback(cudaStream_t stream, std::exception_ptr& callback_err, L& lambda){
 	cudaStreamAddCallback(stream, +[](cudaStream_t stream, cudaError_t status, void* userData){
-		auto& lambda = *reinterpret_cast<L*>(userData);
-		try{ lambda(stream, status); }
-		catch(const std::exception& e){ std::cerr<<"CUDA lambda caused an exception: "<<e.what()<<std::endl; }
-		catch(...){ std::cerr<<"CUDA lambda caused an unknown exception"<<std::endl; }
-	}, &lambda, 0) && assertcu;
+		std::unique_ptr<cuda_callback_data<L&>> data(reinterpret_cast<cuda_callback_data<L&>*>(userData));
+		try{ data.lambda(status); }
+		catch(...){ data.callback_err = std::current_exception(); }
+	}, new cuda_callback_data<L&>{ callback_err, lambda }, 0) && assertcu;
 }
 
-template<typename L> void add_cuda_callback(cudaStream_t stream, L&& lambda){
+template<typename L> void add_cuda_callback(cudaStream_t stream, std::exception_ptr& callback_err, L&& lambda){
 	cudaStreamAddCallback(stream, +[](cudaStream_t stream, cudaError_t status, void* userData){
-		auto lambdaptr = reinterpret_cast<L*>(userData);
-		L lambda = std::move(*lambdaptr);
-		delete lambdaptr;
-		try{ lambda(stream, status); }
-		catch(const std::exception& e){ std::cerr<<"CUDA lambda caused an exception:"<<e.what()<<std::endl; }
-		catch(...){ std::cerr<<"CUDA lambda caused an unknown exception"<<std::endl; }
-	}, new L(std::move(lambda)), 0) && assertcu;
+		std::unique_ptr<cuda_callback_data<L>> data(reinterpret_cast<cuda_callback_data<L>*>(userData));
+		try{ data->lambda(status); }
+		catch(...){ data->callback_err = std::current_exception(); }
+	}, new cuda_callback_data<L>{ callback_err, std::move(lambda) }, 0) && assertcu;
 }
 
 /*

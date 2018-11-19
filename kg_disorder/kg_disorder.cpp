@@ -100,12 +100,10 @@ namespace kg_disorder {
 			if(use_split_kernel) splitter.plane(gres.shard, streams[s_move], streams[s_dump]);
 			cudaMemcpyAsync(gres.shard_host, gres.shard, gconf.shard_size, cudaMemcpyDeviceToHost, streams[s_dump]) && assertcu;
 			if(!use_split_kernel) completion(streams[s_dump]).blocks(streams[s_move]);
-			add_cuda_callback(streams[s_dump], [&, t](cudaStream_t, cudaError_t status) {
+			add_cuda_callback(streams[s_dump], callback_err, [&, t](cudaError_t status) {
 				if(callback_err) return;
-				try {
-					status && assertcu;
-					res.write_shard(t, gres.shard_host);
-				} catch(...) { callback_err = current_exception(); }
+				status && assertcu;
+				res.write_shard(t, gres.shard_host);
 			});
 		};
 		destructor(cudaDeviceSynchronize);
@@ -133,15 +131,13 @@ namespace kg_disorder {
 			completion(streams[s_entropy_aux]).blocks(streams[s_entropy]);
 			if(use_split_kernel) completion(streams[s_entropy]).blocks(streams[s_move]);
 			make_linenergies(projection_phi, projection_pi, streams[s_entropy]);
-			add_cuda_callback(streams[s_entropy], [&, t](cudaStream_t, cudaError_t status) {
+			add_cuda_callback(streams[s_entropy], callback_err, [&, t](cudaError_t status) {
 				if(callback_err) return;
-				try {
-					status && assertcu;
-					auto entropies = res.entropies(gres.linenergies_host, 0.5 / gconf.shard_copies);
-					res.check_entropy(entropies);
-					if(t % gconf.steps_grouping_dump == 0) res.write_linenergies(t);
-					res.write_entropy(t, entropies);
-				} catch(...) { callback_err = current_exception(); }
+				status && assertcu;
+				auto entropies = res.entropies(gres.linenergies_host, 0.5 / gconf.shard_copies);
+				res.check_entropy(entropies);
+				if(t % gconf.steps_grouping_dump == 0) res.write_linenergies(t);
+				res.write_entropy(t, entropies);
 			});
 
 			//termination checks
