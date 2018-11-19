@@ -9,6 +9,7 @@ endif()
 set_source_files_properties(kg_fpu_toda.cu PROPERTIES COMPILE_DEFINITIONS optimized_chain_length=${optimized_chain_length})
 
 add_library(nlchains-kg-fpu-toda STATIC kg_fpu_toda.cpp kg_fpu_toda.cu)
+target_link_libraries(nlchains-kg-fpu-toda ${ARMADILLO_LIBRARIES} -lcufft)
 
 set_property(TARGET nlchains-kg-fpu-toda PROPERTY CUDA_SEPARABLE_COMPILATION ON)
 set_property(TARGET nlchains-kg-fpu-toda PROPERTY CUDA_RESOLVE_DEVICE_SYMBOLS ON)
