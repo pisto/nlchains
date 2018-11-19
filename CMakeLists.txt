@@ -31,11 +31,12 @@ endif()
 
 add_subdirectory(kg_fpu_toda)
 add_subdirectory(kg_disorder)
+add_subdirectory(dnls)
 
 add_executable(nlchains main.cpp results.cpp utilities_cuda.cu results_entropy.cpp)
 set_property(TARGET nlchains PROPERTY CUDA_SEPARABLE_COMPILATION ON)
 set_property(TARGET nlchains PROPERTY CUDA_RESOLVE_DEVICE_SYMBOLS ON)
 #these are lld/ld specific options. --whole-archive is needed.
 target_link_libraries(nlchains -Xlinker --as-needed ${Boost_LIBRARIES} ${MPI_CXX_LIBRARIES}
-        -Xlinker --whole-archive nlchains-kg-fpu-toda nlchains-kg-disorder -Xlinker --no-whole-archive
+        -Xlinker --whole-archive nlchains-kg-fpu-toda nlchains-kg-disorder nlchains-dnls -Xlinker --no-whole-archive
         -lcublas -lcufft)
