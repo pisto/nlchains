@@ -46,7 +46,8 @@ namespace dnls {
 		destructor([&]{ cufftDestroy(fft); });
 		cufftPlan1d(&fft, gconf.chain_length, CUFFT_Z2Z, gconf.shard_copies) && assertcufft;
 		cufftSetStream(fft, streams[s_move]) && assertcufft;
-		cudalist<cufftDoubleComplex> evolve_linear_table(8 * gconf.chain_length);
+
+		cudalist<cufftDoubleComplex> evolve_linear_tables_all(8 * gconf.chain_length);
 		double beta_dt_symplectic[8];
 		{
 			loopi(8) beta_dt_symplectic[i] = beta * gconf.dt * (i == 7 ? 2. : 1.) * symplectic_c[i];
@@ -56,7 +57,7 @@ namespace dnls {
 			complex<double> complexdt = 1i * gconf.dt;
 			loopi(8) loopj(gconf.chain_length)
 				evolve_linear_table_host[i][j] = exp(complexdt * symplectic_d[i == 7 ? 0 : i] * omega_host[j]) * normalization;
-			cudaMemcpy(evolve_linear_table, evolve_linear_table_host.origin(), 8 * gconf.chain_length * sizeof(cufftDoubleComplex), cudaMemcpyHostToDevice) && assertcu;
+			cudaMemcpy(evolve_linear_tables_all, evolve_linear_table_host.origin(), 8 * gconf.chain_length * sizeof(cufftDoubleComplex), cudaMemcpyHostToDevice) && assertcu;
 		}
 
 		exception_ptr callback_err;
@@ -106,7 +107,7 @@ namespace dnls {
 			for(uint32_t i = 0; i < gconf.steps_grouping; i++) for(int k = 0; k < 7; k++){
 				evolve_nonlinear(beta_dt_symplectic[i && !k ? 7 : k], streams[s_move]);
 				cufftExecZ2Z(fft, gres.shard, gres.shard, CUFFT_FORWARD) && assertcufft;
-				evolve_linear(&evolve_linear_table[k * gconf.chain_length], streams[s_move]);
+				evolve_linear(&evolve_linear_tables_all[k * gconf.chain_length], streams[s_move]);
 				cufftExecZ2Z(fft, gres.shard, gres.shard, CUFFT_INVERSE) && assertcufft;
 			}
 			completion finish_move = evolve_nonlinear(beta_dt_symplectic[0], streams[s_move]);
