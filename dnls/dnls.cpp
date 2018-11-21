@@ -48,10 +48,7 @@ namespace dnls {
 		cufftSetStream(fft, streams[s_move]) && assertcufft;
 
 		cudalist<cufftDoubleComplex> evolve_linear_tables_all(8 * gconf.chain_length);
-		double beta_dt_symplectic[8];
 		{
-			loopi(8) beta_dt_symplectic[i] = beta * gconf.dt * (i == 7 ? 2. : 1.) * symplectic_c[i];
-
 			boost::multi_array<complex<double>, 2> evolve_linear_table_host(boost::extents[8][gconf.chain_length]);
 			auto normalization = 1. / gconf.chain_length;
 			complex<double> complexdt = 1i * gconf.dt;
@@ -105,12 +102,12 @@ namespace dnls {
 			}
 
 			for(uint32_t i = 0; i < gconf.steps_grouping; i++) for(int k = 0; k < 7; k++){
-				evolve_nonlinear(beta_dt_symplectic[i && !k ? 7 : k], streams[s_move]);
+				evolve_nonlinear(beta * gconf.dt * (!k && i ? 2. : 1.) * symplectic_c[k], streams[s_move]);
 				cufftExecZ2Z(fft, gres.shard, gres.shard, CUFFT_FORWARD) && assertcufft;
 				evolve_linear(&evolve_linear_tables_all[k * gconf.chain_length], streams[s_move]);
 				cufftExecZ2Z(fft, gres.shard, gres.shard, CUFFT_INVERSE) && assertcufft;
 			}
-			completion finish_move = evolve_nonlinear(beta_dt_symplectic[0], streams[s_move]);
+			completion finish_move = evolve_nonlinear(beta * gconf.dt * symplectic_c[7], streams[s_move]);
 			finish_move.blocks(streams[s_entropy]);
 			finish_move.blocks(streams[s_dump]);
 
