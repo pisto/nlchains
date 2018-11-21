@@ -42,7 +42,8 @@ namespace dnls {
 		destructor([&] { for (auto stream : streams) cudaStreamDestroy(stream); });
 		for (auto &stream : streams) cudaStreamCreateWithFlags(&stream, cudaStreamNonBlocking) && assertcu;
 
-		cufftHandle fft;
+		cufftHandle fft = 0;
+		destructor([&]{ cufftDestroy(fft); });
 		cufftPlan1d(&fft, gconf.chain_length, CUFFT_Z2Z, gconf.shard_copies) && assertcufft;
 		cufftSetStream(fft, streams[s_move]) && assertcufft;
 		cudalist<cufftDoubleComplex> evolve_linear_table(8 * gconf.chain_length);
