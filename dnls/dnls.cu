@@ -39,6 +39,22 @@ namespace dnls {
 		return completion(stream);
 	}
 
+	namespace callback {
+		__constant__ uint16_t chainlen;
+		__constant__ uint8_t evolve_linear_table_idx;
+
+		__device__ cufftDoubleComplex evolve_linear(void* in, size_t offset, void* evolve_linear_tables_all, void*){
+			auto psis_k = static_cast<cufftDoubleComplex*>(in);
+			load_ldg<cufftDoubleComplex> evolve_linear_table(static_cast<cufftDoubleComplex*>(evolve_linear_tables_all));
+			evolve_linear_table += uint32_t(chainlen) * evolve_linear_table_idx;
+			uint32_t idx = offset;
+			uint16_t chainlen_mask = chainlen - 1;
+			return psis_k[idx] * evolve_linear_table[chainlen & chainlen_mask ? idx % chainlen : idx & chainlen_mask];
+		}
+
+		__device__ const cufftCallbackLoadZ evolve_linear_ptr = evolve_linear;
+	}
+
 
 	__global__ void make_linenergies_kernel(uint16_t copies_shard, uint16_t chainlen, const cufftDoubleComplex* psis_k, const double* omega, double* linenergies_host){
 		uint32_t k = blockIdx.x * blockDim.x + threadIdx.x;

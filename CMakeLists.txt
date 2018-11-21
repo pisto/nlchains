@@ -60,7 +60,9 @@ add_executable(nlchains
         kg_disorder/kg_disorder.cpp kg_disorder/kg_disorder.cu
         dnls/dnls.cpp dnls/dnls.cu)
 set_property(TARGET nlchains PROPERTY CUDA_SEPARABLE_COMPILATION ON)
-target_link_libraries(nlchains ${Boost_LIBRARIES} ${MPI_CXX_LIBRARIES} ${ARMADILLO_LIBRARIES} -lcublas -lcufft)
+target_link_libraries(nlchains ${Boost_LIBRARIES} ${MPI_CXX_LIBRARIES} ${ARMADILLO_LIBRARIES} -lcublas -lcufft_static -lculibos)
+#XXX workaround for bad CMake support for device link libraries, see https://gitlab.kitware.com/cmake/cmake/issues/18599 https://gitlab.kitware.com/cmake/cmake/issues/18614
+set(CMAKE_CUDA_DEVICE_LINK_EXECUTABLE "${CMAKE_CUDA_DEVICE_LINK_EXECUTABLE} -lcufft_static")
 
 #boost and MPI tend to pull in much useless stuff in on different platforms
 add_definitions(-DOMPI_SKIP_MPICXX)
