@@ -6,7 +6,7 @@
 namespace dnls {
 
 	template<typename T>
-	using load_ca = cub::CacheModifiedInputIterator<cub::LOAD_CA, T>;
+	using load_ldg = cub::CacheModifiedInputIterator<cub::LOAD_LDG, T>;
 
 	__global__ void evolve_nonlinear_kernel(uint32_t shard_elements, cufftDoubleComplex* psis, double beta_dt_symplectic){
 		uint32_t idx = blockIdx.x * blockDim.x + threadIdx.x;
@@ -16,7 +16,7 @@ namespace dnls {
 	}
 
 	__global__ void evolve_linear_kernel(uint32_t shard_elements, uint16_t chainlen, cufftDoubleComplex* psis_k,
-	                                     load_ca<cufftDoubleComplex> evolve_linear_table){
+	                                     load_ldg<cufftDoubleComplex> evolve_linear_table){
 		uint32_t idx = blockIdx.x * blockDim.x + threadIdx.x;
 		if(idx >= shard_elements) return;
 		uint16_t chainlen_mask = chainlen - 1;
