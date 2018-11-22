@@ -1,6 +1,6 @@
 #include <cub/iterator/cache_modified_input_iterator.cuh>
-#include "../utilities_cuda.cuh"
-#include "../configuration.hpp"
+#include "../common/utilities_cuda.cuh"
+#include "../common/configuration.hpp"
 #include "dnls.hpp"
 
 namespace dnls {

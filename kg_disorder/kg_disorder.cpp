@@ -1,10 +1,10 @@
 #include <iostream>
 #include <fstream>
 #include <armadillo>
-#include "../utilities.hpp"
-#include "../configuration.hpp"
-#include "../results.hpp"
-#include "../symplectic.hpp"
+#include "../common/utilities.hpp"
+#include "../common/configuration.hpp"
+#include "../common/results.hpp"
+#include "../common/symplectic.hpp"
 #include "kg_disorder.hpp"
 
 using namespace std;

@@ -310,7 +310,7 @@ struct kernel_info {
 	//some heuristic
 	int2 linear_configuration(size_t elements, bool print) const {
 		int cudaOccupancyMaxPotentialBlockSize_void(void* kern, int maxblock);
-		static_assert(sizeof(k) == sizeof(void*));
+		static_assert(sizeof(k) == sizeof(void*), "CUDA kernels are not pointers!");
 		int last_grid_size, block_size;
 		//all device have max threads = 2048, CC > 3 can have 64 resident blocks instead of 32
 		for(int max_block_size = device_props.major > 3 ? 64 : 128; max_block_size; max_block_size -= 32){

@@ -1,7 +1,7 @@
 #pragma once
 
 #include <cuda_runtime.h>
-#include "../utilities_cuda.cuh"
+#include "../common/utilities_cuda.cuh"
 
 namespace kg_disorder {
 

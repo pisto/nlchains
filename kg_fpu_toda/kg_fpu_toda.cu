@@ -1,8 +1,8 @@
 #include <sstream>
 #include <iostream>
 #include <cub/util_ptx.cuh>
-#include "../utilities_cuda.cuh"
-#include "../configuration.hpp"
+#include "../common/utilities_cuda.cuh"
+#include "../common/configuration.hpp"
 #include "kg_fpu_toda.hpp"
 
 namespace kg_fpu_toda {

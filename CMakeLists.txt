@@ -36,11 +36,11 @@ endif()
 if(CMAKE_BUILD_TYPE MATCHES Rel)
     #aid SIMD vectorization in results_entropy.cpp
     if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
-        set_property(SOURCE results_entropy.cpp APPEND_STRING PROPERTY COMPILE_FLAGS " -Ofast ")
+        set_property(SOURCE common/results_entropy.cpp APPEND_STRING PROPERTY COMPILE_FLAGS " -Ofast ")
     endif()
     find_package(OpenMP)
     if(OpenMP_CXX_FOUND)
-        set_property(SOURCE results_entropy.cpp APPEND_STRING PROPERTY COMPILE_FLAGS " ${OpenMP_CXX_FLAGS} ")
+        set_property(SOURCE common/results_entropy.cpp APPEND_STRING PROPERTY COMPILE_FLAGS " ${OpenMP_CXX_FLAGS} ")
     endif()
 endif()
 
@@ -55,7 +55,7 @@ set_source_files_properties(kg_fpu_toda/kg_fpu_toda.cu kg_disorder/kg_disorder.c
 
 #link/build flags
 add_executable(nlchains
-        main.cpp results.cpp utilities_cuda.cu results_entropy.cpp
+        common/main.cpp common/results.cpp common/utilities_cuda.cu common/results_entropy.cpp
         kg_fpu_toda/kg_fpu_toda.cpp kg_fpu_toda/kg_fpu_toda.cu
         kg_disorder/kg_disorder.cpp kg_disorder/kg_disorder.cu
         dnls/dnls.cpp dnls/dnls.cu)

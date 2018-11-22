@@ -3,8 +3,8 @@
 #include <iterator>
 #include <cub/util_ptx.cuh>
 #include <cub/warp/warp_reduce.cuh>
-#include "../utilities_cuda.cuh"
-#include "../configuration.hpp"
+#include "../common/utilities_cuda.cuh"
+#include "../common/configuration.hpp"
 #include "kg_disorder.hpp"
 
 namespace kg_disorder {

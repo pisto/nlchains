@@ -1,8 +1,8 @@
 #include <iostream>
 #include <vector>
-#include "../utilities.hpp"
-#include "../results.hpp"
-#include "../symplectic.hpp"
+#include "../common/utilities.hpp"
+#include "../common/results.hpp"
+#include "../common/symplectic.hpp"
 #include "kg_fpu_toda.hpp"
 
 using namespace std;

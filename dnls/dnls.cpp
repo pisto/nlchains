@@ -2,10 +2,10 @@
 #include <iostream>
 #include <complex>
 #include <boost/multi_array.hpp>
-#include "../utilities.hpp"
-#include "../configuration.hpp"
-#include "../results.hpp"
-#include "../symplectic.hpp"
+#include "../common/utilities.hpp"
+#include "../common/configuration.hpp"
+#include "../common/results.hpp"
+#include "../common/symplectic.hpp"
 #include "dnls.hpp"
 
 using namespace std;

@@ -2,7 +2,7 @@
 
 #include <cuda_runtime.h>
 #include <cufft.h>
-#include "../utilities_cuda.cuh"
+#include "../common/utilities_cuda.cuh"
 
 namespace dnls {
 
