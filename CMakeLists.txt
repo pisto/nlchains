@@ -1,11 +1,11 @@
 cmake_minimum_required(VERSION 3.9)
 project(nlchains LANGUAGES CXX CUDA)
 
-if(NOT "${CMAKE_CXX_COMPILER_ID}" MATCHES "GNU|Clang")
-    message(WARNING "Only GCC and Clang compilers/linkers have been tested.")
+if(NOT "${CMAKE_CXX_COMPILER_ID}" MATCHES "GNU")
+    message(WARNING "Only the GCC compiler has been tested.")
 endif()
 
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CUDA_STANDARD 14)
 
 
@@ -61,7 +61,6 @@ add_executable(nlchains
         dnls/dnls.cpp dnls/dnls.cu)
 set_property(TARGET nlchains PROPERTY CUDA_SEPARABLE_COMPILATION ON)
 target_link_libraries(nlchains ${Boost_LIBRARIES} ${MPI_CXX_LIBRARIES} ${ARMADILLO_LIBRARIES} -lcublas -lcufft)
-
 
 #boost and MPI tend to pull in much useless stuff in on different platforms
 add_definitions(-DOMPI_SKIP_MPICXX)
