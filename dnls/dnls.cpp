@@ -47,20 +47,20 @@ namespace dnls {
 		destructor([&] { for (auto stream : streams) cudaStreamDestroy(stream); });
 		for (auto &stream : streams) cudaStreamCreateWithFlags(&stream, cudaStreamNonBlocking) && assertcu;
 
-		cufftHandle fft = 0;
-		destructor([&]{ cufftDestroy(fft); });
-		cufftPlan1d(&fft, gconf.chain_length, CUFFT_Z2Z, gconf.shard_copies) && assertcufft;
-		cufftSetStream(fft, streams[s_move]) && assertcufft;
-
 		cudalist<cufftDoubleComplex> evolve_linear_tables_all(8 * gconf.chain_length);
 		{
 			boost::multi_array<complex<double>, 2> evolve_linear_table_host(boost::extents[8][gconf.chain_length]);
 			auto normalization = 1. / gconf.chain_length;
 			complex<double> complexdt = 1i * gconf.dt;
 			loopi(8) loopj(gconf.chain_length)
-				evolve_linear_table_host[i][j] = exp(complexdt * symplectic_d[i == 7 ? 0 : i] * omega_host[j]) * normalization;
+					evolve_linear_table_host[i][j] = exp(complexdt * symplectic_d[i == 7 ? 0 : i] * omega_host[j]) * normalization;
 			cudaMemcpy(evolve_linear_tables_all, evolve_linear_table_host.origin(), 8 * gconf.chain_length * sizeof(cufftDoubleComplex), cudaMemcpyHostToDevice) && assertcu;
 		}
+
+		cufftHandle fft = 0;
+		destructor([&]{ cufftDestroy(fft); });
+		cufftPlan1d(&fft, gconf.chain_length, CUFFT_Z2Z, gconf.shard_copies) && assertcufft;
+		cufftSetStream(fft, streams[s_move]) && assertcufft;
 
 		cufftHandle fft_elvolve_psik = 0;
 		destructor([&]{ cufftDestroy(fft_elvolve_psik); });
@@ -70,13 +70,8 @@ namespace dnls {
 			cufftSetStream(fft_elvolve_psik, streams[s_move]) && assertcufft;
 			auto evolve_linear_ptr_host = get_device_object(evolve_linear_ptr);
 			auto evolve_linear_tables_all_ptr = *evolve_linear_tables_all;
-			if(auto cuffterr = cufftXtSetCallback(fft_elvolve_psik, (void**)&evolve_linear_ptr_host, CUFFT_CB_LD_COMPLEX_DOUBLE, (void**)&evolve_linear_tables_all_ptr)){
-				ostringstream nocb;
-				nocb<<process_ident<<": cannot use cuFFT callbacks ("<<assertcufft_helper::errors().at(cuffterr)<<") falling back to kernel invocations"<<endl;
-				cerr<<nocb.str();
-				cufftDestroy(fft_elvolve_psik);
-				fft_elvolve_psik = 0;
-			} else set_device_object(gconf.chain_length, chainlen);
+			cufftXtSetCallback(fft_elvolve_psik, (void**)&evolve_linear_ptr_host, CUFFT_CB_LD_COMPLEX_DOUBLE, (void**)&evolve_linear_tables_all_ptr) && assertcufft;
+			set_device_object(gconf.chain_length, chainlen);
 		}
 
 		cufftHandle fft_elvolve_psi = 0;
@@ -88,16 +83,9 @@ namespace dnls {
 			cufftPlan1d(&fft_elvolve_psi, gconf.chain_length, CUFFT_Z2Z, gconf.shard_copies) && assertcufft;
 			cufftSetStream(fft_elvolve_psi, streams[s_move]) && assertcufft;
 			auto evolve_nonlinear_ptr_host = get_device_object(evolve_nonlinear_ptr);
-			if(auto cuffterr = cufftXtSetCallback(fft_elvolve_psi, (void**)&evolve_nonlinear_ptr_host, CUFFT_CB_LD_COMPLEX_DOUBLE, 0)){
-				ostringstream nocb;
-				nocb<<process_ident<<": cannot use cuFFT callbacks ("<<assertcufft_helper::errors().at(cuffterr)<<") falling back to kernel invocations"<<endl;
-				cerr<<nocb.str();
-				cufftDestroy(fft_elvolve_psi);
-				fft_elvolve_psik = 0;
-			} else {
-				beta_dt_symplectic_all = cudalist<double, true>(8, true);
-				loopk(8) beta_dt_symplectic_all[k] = beta * gconf.dt * (k == 7 ? 2. : 1.) * symplectic_c[k];
-			}
+			cufftXtSetCallback(fft_elvolve_psi, (void**)&evolve_nonlinear_ptr_host, CUFFT_CB_LD_COMPLEX_DOUBLE, 0) && assertcufft;
+			beta_dt_symplectic_all = cudalist<double, true>(8, true);
+			loopk(8) beta_dt_symplectic_all[k] = beta * gconf.dt * (k == 7 ? 2. : 1.) * symplectic_c[k];
 		}
 
 		exception_ptr callback_err;
