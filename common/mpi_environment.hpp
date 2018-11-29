@@ -32,18 +32,23 @@ namespace boost {
 	namespace mpi {
 		struct exception_location : exception {
 			using exception::exception;
-			struct record { std::string file_line; };
-			virtual const char* what () const noexcept { return msg.c_str(); }
+			struct record {
+				std::string file_line;
+			};
+
+			virtual const char *what() const noexcept { return msg.c_str(); }
 
 		protected:
-			exception_location(const record& r, int result_code):
+			exception_location(const record &r, int result_code) :
 					exception("<unknown routine>", result_code), msg("@" + r.file_line + ": " + exception::what()) {}
-			friend void operator&&(int result_code, exception_location::record&& p);
+
+			friend void operator&&(int result_code, exception_location::record &&p);
+
 			const std::string msg;
 		};
 
-		inline void operator&&(int result_code, exception_location::record&& p){
-			if(!result_code) return;
+		inline void operator&&(int result_code, exception_location::record &&p) {
+			if (!result_code) return;
 			throw boost::mpi::exception_location(p, result_code);
 		}
 
@@ -56,4 +61,4 @@ extern const std::string process_ident;
  * Associate subprograms to --program argument.
  */
 
-std::map<std::string, std::function<int(int argc, char* argv[])>>& programs();
+std::map<std::string, std::function<int(int argc, char *argv[])>> &programs();

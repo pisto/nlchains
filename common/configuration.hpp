@@ -20,7 +20,9 @@ extern struct configuration {
 	std::string dump_prefix;
 	uint64_t steps = 0, timebase = 0;
 	double entropy_limit;
-	enum { NONE = 0, INFORMATION, WT } entropy_limit_type = NONE;
+	enum {
+		NONE = 0, INFORMATION, WT
+	} entropy_limit_type = NONE;
 
 	size_t linenergy_size, shard_size;
 	std::vector<uint16_t> entropy_modes_indices;
@@ -37,8 +39,9 @@ struct parse_cmdline {
 	boost::program_options::options_description options;
 	boost::program_options::variables_map vm;
 
-	parse_cmdline(const std::string& name);
-	void operator()(int argc, char* argv[]);
+	parse_cmdline(const std::string &name);
+
+	void operator()(int argc, char *argv[]);
 
 	std::string initial_filename, entropymask_filename;
 	struct help_quit {

@@ -17,29 +17,38 @@ resources gres;
 
 const environment mpienv(threading::multiple, false);
 const communicator mpi_global, mpi_global_alt(mpi_global, comm_duplicate);
-const int mpi_global_coord = mpi_global.rank(), mpi_node_coord = []{
+const int mpi_global_coord = mpi_global.rank(), mpi_node_coord = [] {
 	MPI_Comm node;
+	/*
+	 * Try to detect in a portable way the group of processes that run on the same node,
+	 * and as such need to coordinate for the cuda device indexes.
+	 */
 	MPI_Comm_split_type(MPI_COMM_WORLD, MPI_COMM_TYPE_SHARED, 0, MPI_INFO_NULL, &node) && assertmpi;
 	return communicator(node, comm_take_ownership).rank();
 }();
 
-const string process_ident("MPI rank/hostname/GPU: " + to_string(mpi_global_coord) + "/" + mpienv.processor_name() + "/" + to_string(mpi_node_coord));
+const string process_ident(
+		"MPI rank/hostname/GPU: " + to_string(mpi_global_coord) + "/" + mpienv.processor_name() + "/" +
+		to_string(mpi_node_coord));
 
-map<std::string, function<int(int argc, char* argv[])>>& programs(){
-	static map<string, function<int(int argc, char* argv[])>> progs;
+map<std::string, function<int(int argc, char *argv[])>> &programs() {
+	static map<string, function<int(int argc, char *argv[])>> progs;
 	return progs;
 };
 
 namespace boost {
-	void assertion_failed(const char* expr, const char* function, const char* file, long line) {
+	void assertion_failed(const char *expr, const char *function, const char *file, long line) {
 		throw logic_error("Boost assert failed: "s + expr + ", at " + file + ":" + to_string(line) + " in " + function);
 	}
-	void assertion_failed_msg(const char* expr, const char* msg, const char* function, const char* file, long line) {
-		throw logic_error("Boost assert failed ("s + msg + "): " + "" + expr + ", at " + file + ":" + to_string(line) + " in " + function);
+
+	void assertion_failed_msg(const char *expr, const char *msg, const char *function, const char *file, long line) {
+		throw logic_error(
+				"Boost assert failed ("s + msg + "): " + "" + expr + ", at " + file + ":" + to_string(line) + " in " +
+				function);
 	}
 }
 
-parse_cmdline::parse_cmdline(const string& name): options(name){
+parse_cmdline::parse_cmdline(const string &name) : options(name) {
 	using namespace boost::program_options;
 	options.add_options()
 			("verbose,v", "print extra informations")
@@ -59,36 +68,36 @@ parse_cmdline::parse_cmdline(const string& name): options(name){
 			 "number of steps between full state dumps (defaults to same value as --grouping)");
 }
 
-void parse_cmdline::operator()(int argc, char* argv[]) try {
-	if(argc == 1) throw help_quit{options};
+void parse_cmdline::operator()(int argc, char *argv[]) try {
+	if (argc == 1) throw help_quit{options};
 	try {
 		store(boost::program_options::parse_command_line(argc, argv, options), vm);
 		notify(vm);
-	} catch(const boost::program_options::error& e){
+	} catch (const boost::program_options::error &e) {
 		throw invalid_argument(e.what());
 	}
 
 	//check user arguments
 	gconf.verbose = vm.count("verbose");
-	if(gconf.copies_total % mpi_global.size())
+	if (gconf.copies_total % mpi_global.size())
 		throw invalid_argument("copies must be a multiple of the number of devices");
 	gconf.shard_copies = gconf.copies_total / mpi_global.size();
-	if(gconf.chain_length < 2 || !gconf.shard_copies || gconf.dt <= 0 || !gconf.steps_grouping)
+	if (gconf.chain_length < 2 || !gconf.shard_copies || gconf.dt <= 0 || !gconf.steps_grouping)
 		throw invalid_argument("chain_length must be >= 2, copies, dt and grouping must be positive numbers");
-	if(gconf.entropy_limit < 0)
+	if (gconf.entropy_limit < 0)
 		throw invalid_argument("entropy limit must be >= 0");
-	if(vm.count("entropy"))
+	if (vm.count("entropy"))
 		gconf.entropy_limit_type = vm.count("WTlimit") ? configuration::WT : configuration::INFORMATION;
-	if(!vm.count("dumpsteps")) gconf.steps_grouping_dump = gconf.steps_grouping;
-	if(gconf.steps_grouping_dump % gconf.steps_grouping)
+	if (!vm.count("dumpsteps")) gconf.steps_grouping_dump = gconf.steps_grouping;
+	if (gconf.steps_grouping_dump % gconf.steps_grouping)
 		throw invalid_argument("--dumpsteps must be a multiple of --grouping");
-	if(gconf.steps % gconf.steps_grouping_dump || gconf.timebase % gconf.steps_grouping_dump)
+	if (gconf.steps % gconf.steps_grouping_dump || gconf.timebase % gconf.steps_grouping_dump)
 		throw invalid_argument("steps and timebase must be a multiple of --dumpsteps");
-	if(gconf.timebase && gconf.steps && gconf.timebase >= gconf.steps)
+	if (gconf.timebase && gconf.steps && gconf.timebase >= gconf.steps)
 		throw invalid_argument("timebase must be less than steps");
 
 	gconf.linenergy_size = sizeof(double) * gconf.chain_length;
-	if(uint64_t(gconf.chain_length) * gconf.shard_copies >= 0x40000000ULL)
+	if (uint64_t(gconf.chain_length) * gconf.shard_copies >= 0x40000000ULL)
 		throw invalid_argument("(chain_length * copies) / total_GPUs must be <= 2^30");
 	gconf.shard_elements = uint32_t(gconf.chain_length) * gconf.shard_copies;
 	gconf.shard_size = sizeof(double2) * gconf.shard_elements;
@@ -101,38 +110,39 @@ void parse_cmdline::operator()(int argc, char* argv[]) try {
 	try {
 		ifstream initial_state(initial_filename);
 		initial_state.exceptions(ios::failbit | ios::badbit | ios::eofbit);
-		initial_state.seekg(gconf.shard_size * mpi_global_coord).read((char*)*gres.shard_host, gconf.shard_size);
-	} catch(const ios_base::failure& e) {
+		initial_state.seekg(gconf.shard_size * mpi_global_coord).read((char *) *gres.shard_host, gconf.shard_size);
+	} catch (const ios_base::failure &e) {
 		throw ios_base::failure("could not read initial state ("s + e.what() + ")", e.code());
 	}
-	if(!entropymask_filename.empty()) try {
+	if (!entropymask_filename.empty())
+		try {
 			ifstream entropymask_file(entropymask_filename);
 			entropymask_file.exceptions(ios::failbit | ios::badbit | ios::eofbit);
 			uint16_t mode = 0;
-			loopi(gconf.chain_length){
-				if(entropymask_file.get()) gconf.entropy_modes_indices.push_back(mode);
+			loopi(gconf.chain_length) {
+				if (entropymask_file.get()) gconf.entropy_modes_indices.push_back(mode);
 				mode++;
 			}
-		} catch(const ios_base::failure& e) {
+		} catch (const ios_base::failure &e) {
 			throw ios_base::failure("could not read entropy mask file ("s + e.what() + ")", e.code());
 		}
 	cudaMemcpy(gres.shard, gres.shard_host, gconf.shard_size, cudaMemcpyHostToDevice) && assertcu;
 
-} catch(const invalid_argument& e){
+} catch (const invalid_argument &e) {
 	ostringstream fmtmsg;
-	fmtmsg<<e.what()<<endl<<options;
+	fmtmsg << e.what() << endl << options;
 	throw invalid_argument(fmtmsg.str());
 }
 
 
-static int print_fatal_error(const string &msg){
+static int print_fatal_error(const string &msg) {
 	ostringstream fmtmsg;
-	fmtmsg<<process_ident<<": "<<msg<<endl;
-	cerr<<fmtmsg.str();
+	fmtmsg << process_ident << ": " << msg << endl;
+	cerr << fmtmsg.str();
 	return 1;
 }
 
-int main(int argc, char** argv) try {
+int main(int argc, char **argv) try {
 	//whether catching these signal works is MPI-implementation dependent
 	for (int s: {SIGINT, SIGTERM}) signal(s, [](int) { quit_requested = true; });
 
@@ -170,18 +180,18 @@ int main(int argc, char** argv) try {
 
 	return program->second(argc - 1, argv + 1);
 
-} catch(const parse_cmdline::help_quit& e){
-	if(!mpi_global_coord) cerr<<e.options;
+} catch (const parse_cmdline::help_quit &e) {
+	if (!mpi_global_coord) cerr << e.options;
 	return 0;
-} catch(const ios_base::failure& e) {
+} catch (const ios_base::failure &e) {
 	return print_fatal_error("I/O error, "s + e.what() + " (" + e.code().message() + ")");
-} catch(const system_error& e) {
+} catch (const system_error &e) {
 	return print_fatal_error("system error, "s + e.code().message());
-} catch(const invalid_argument& e) {
-	if(mpi_global_coord) return 1;
+} catch (const invalid_argument &e) {
+	if (mpi_global_coord) return 1;
 	return print_fatal_error("invalid argument, "s + e.what());
-} catch(const std::exception& e) {
+} catch (const std::exception &e) {
 	return print_fatal_error("exception "s + boost::core::demangled_name(typeid(e)) + ", " + e.what());
-} catch(...) {
+} catch (...) {
 	return print_fatal_error("unspecified fatal exception");
 }

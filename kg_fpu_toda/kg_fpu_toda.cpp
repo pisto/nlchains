@@ -10,7 +10,7 @@ using namespace std;
 namespace kg_fpu_toda {
 
 	template<Model model>
-	int main(int argc, char* argv[]){
+	int main(int argc, char *argv[]) {
 
 		bool use_split_kernel = false;
 		double m, alpha, beta;
@@ -18,7 +18,8 @@ namespace kg_fpu_toda {
 			using namespace boost::program_options;
 			parse_cmdline parser("Options for "s + argv[0]);
 			if (model == KG) parser.options.add_options()(",m", value(&m)->required(), "linear parameter m");
-			if (model != KG) parser.options.add_options()("alpha", value(&alpha)->required(), "third order nonlinearity");
+			if (model != KG)
+				parser.options.add_options()("alpha", value(&alpha)->required(), "third order nonlinearity");
 			parser.options.add_options()
 					("beta", value(&beta)->required(), "fourth order nonlinearity")
 					("split-kernel", "force use of split kernel");
@@ -33,7 +34,8 @@ namespace kg_fpu_toda {
 				auto s2 = 2 * sin(k * M_PI / gconf.chain_length);
 				omega_host[k] = sqrt(m + s2 * s2);
 			}
-			for (int k = -1; k >= -int(gconf.chain_length - 1) / 2; k--) omega_host[gconf.chain_length + k] = omega_host[-k];
+			for (int k = -1; k >= -int(gconf.chain_length - 1) / 2; k--)
+				omega_host[gconf.chain_length + k] = omega_host[-k];
 			cudaMemcpy(omega, omega_host.data(), gconf.linenergy_size, cudaMemcpyHostToDevice) && assertcu;
 		}
 
@@ -53,7 +55,7 @@ namespace kg_fpu_toda {
 		cudalist<double2> fft_phi(gconf.shard_elements * 2);
 		auto fft_pi = &fft_phi[gconf.shard_elements];
 		cufftHandle fft_plan = 0;
-		destructor([&]{ if(fft_plan) cufftDestroy(fft_plan); });
+		destructor([&] { if (fft_plan) cufftDestroy(fft_plan); });
 		cufftPlan1d(&fft_plan, gconf.chain_length, CUFFT_Z2Z, 2 * int(gconf.shard_copies)) && assertcufft;
 		cufftSetStream(fft_plan, streams[s_entropy]) && assertcufft;
 
@@ -68,21 +70,22 @@ namespace kg_fpu_toda {
 		set_device_object(alpha2_inv, kg_fpu_toda::alpha2_inv);
 		set_device_object(beta, kg_fpu_toda::beta);
 
-		plane2split* splitter = 0;
-		if(use_split_kernel){
+		plane2split *splitter = 0;
+		if (use_split_kernel) {
 			splitter = new plane2split(gconf.chain_length, gconf.shard_copies);
 			splitter->split(gres.shard, streams[s_move]);
 		}
-		destructor([&]{ delete splitter; });
+		destructor([&] { delete splitter; });
 
 		exception_ptr callback_err;
 		completion throttle;
 		uint64_t t = gconf.timebase;
-		auto dumper = [&]{
-			cudaMemcpyAsync(gres.shard_host, gres.shard, gconf.shard_size, cudaMemcpyDeviceToHost, streams[s_dump]) && assertcu;
-			if(!splitter) completion(streams[s_dump]).blocks(streams[s_move]);
+		auto dumper = [&] {
+			cudaMemcpyAsync(gres.shard_host, gres.shard, gconf.shard_size, cudaMemcpyDeviceToHost, streams[s_dump]) &&
+			assertcu;
+			if (!splitter) completion(streams[s_dump]).blocks(streams[s_move]);
 			add_cuda_callback(streams[s_dump], callback_err, [&, t](cudaError_t status) {
-				if(callback_err) return;
+				if (callback_err) return;
 				status && assertcu;
 				res.write_shard(t, gres.shard_host);
 			});
@@ -93,8 +96,8 @@ namespace kg_fpu_toda {
 			if (throttleswitch) throttle = completion(streams[s_move]);
 			else throttle.wait();
 
-			if(splitter) splitter->plane(gres.shard, streams[s_move], streams[s_dump]).blocks(streams[s_entropy]);
-			if(t % gconf.steps_grouping_dump == 0) dumper();
+			if (splitter) splitter->plane(gres.shard, streams[s_move], streams[s_dump]).blocks(streams[s_entropy]);
+			if (t % gconf.steps_grouping_dump == 0) dumper();
 			//entropy stream is already synced to move or dump stream, that is the readiness of the planar representation
 			completion(streams[s_entropy]).blocks(streams[s_entropy_aux]);
 			//interleave phi and pi with zeroes, since we do a complex FFT
@@ -103,31 +106,31 @@ namespace kg_fpu_toda {
 			cudaMemcpy2DAsync(fft_pi, sizeof(double2), &gres.shard[0].y, sizeof(double2), sizeof(double),
 			                  gconf.shard_elements, cudaMemcpyDeviceToDevice, streams[s_entropy_aux]) && assertcu;
 			completion(streams[s_entropy_aux]).blocks(streams[s_entropy]);
-			if(!splitter) completion(streams[s_entropy]).blocks(streams[s_move]);
+			if (!splitter) completion(streams[s_entropy]).blocks(streams[s_move]);
 			cufftExecZ2Z(fft_plan, fft_phi, fft_phi, CUFFT_FORWARD) && assertcufft;
 			make_linenergies(fft_phi, fft_pi, omega, streams[s_entropy]);
 			//cleanup buffer for next FFT
 			completion(streams[s_entropy]).blocks(streams[s_entropy_aux]);
 			cudaMemsetAsync(fft_phi, 0, gconf.shard_size * 2, streams[s_entropy_aux]) && assertcu;
 			add_cuda_callback(streams[s_entropy], callback_err, [&, t](cudaError_t status) {
-				if(callback_err) return;
+				if (callback_err) return;
 				status && assertcu;
 				auto entropies = res.entropies(gres.linenergies_host, (0.5 / gconf.shard_copies) / gconf.chain_length);
 				res.check_entropy(entropies);
-				if(t % gconf.steps_grouping_dump == 0) res.write_linenergies(t);
+				if (t % gconf.steps_grouping_dump == 0) res.write_linenergies(t);
 				res.write_entropy(t, entropies);
 			});
 			completion(streams[s_entropy_aux]).blocks(streams[s_entropy]);
 
 			//termination checks
-			if(callback_err) rethrow_exception(callback_err);
-			if(quit_requested && !unified_max_step){
+			if (callback_err) rethrow_exception(callback_err);
+			if (quit_requested && !unified_max_step) {
 				boost::mpi::all_reduce(mpi_global_alt, t, gconf.steps, boost::mpi::maximum<uint64_t>());
 				unified_max_step = true;
 			}
-			if(gconf.steps && gconf.steps == t){
+			if (gconf.steps && gconf.steps == t) {
 				//make sure all MPI calls are matched, use_split_kernel
-				if(!unified_max_step)
+				if (!unified_max_step)
 					boost::mpi::all_reduce(mpi_global_alt, t, gconf.steps, boost::mpi::maximum<uint64_t>());
 				break;
 			}
@@ -137,7 +140,7 @@ namespace kg_fpu_toda {
 			finish_move.blocks(streams[s_dump]);
 
 		}
-		if(t % gconf.steps_grouping_dump != 0){
+		if (t % gconf.steps_grouping_dump != 0) {
 			dumper();
 			completion(streams[s_entropy]).wait();
 			res.write_linenergies(t);
@@ -146,8 +149,8 @@ namespace kg_fpu_toda {
 	}
 }
 
-ginit = []{
-	auto& programs = ::programs();
+ginit = [] {
+	auto &programs = ::programs();
 	programs["KleinGordon"] = kg_fpu_toda::main<kg_fpu_toda::KG>;
 	programs["FPU"] = kg_fpu_toda::main<kg_fpu_toda::FPU>;
 	programs["Toda"] = kg_fpu_toda::main<kg_fpu_toda::Toda>;

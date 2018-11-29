@@ -11,7 +11,7 @@ using namespace std;
 
 namespace kg_disorder {
 
-	int main(int argc, char* argv[]){
+	int main(int argc, char *argv[]) {
 
 		bool use_split_kernel = false;
 		arma::vec mp2_host;
@@ -31,8 +31,8 @@ namespace kg_disorder {
 			try {
 				ifstream ms(m_fname);
 				ms.exceptions(ios::failbit | ios::badbit | ios::eofbit);
-				ms.read((char*)mp2_host.memptr(), gconf.chain_length * sizeof(double));
-			} catch(const ios_base::failure& e) {
+				ms.read((char *) mp2_host.memptr(), gconf.chain_length * sizeof(double));
+			} catch (const ios_base::failure &e) {
 				throw ios::failure("could not read m file ("s + e.what() + ")", e.code());
 			}
 			mp2_host += 2;
@@ -44,33 +44,37 @@ namespace kg_disorder {
 				projection_phi(2 * size_t(gconf.shard_copies) * gconf.chain_length);
 		auto projection_pi = &projection_phi[size_t(gconf.shard_copies) * gconf.chain_length];
 		{
-			auto vecsize = gconf.chain_length * sizeof(double), matsize = size_t(gconf.chain_length) * gconf.chain_length * sizeof(double);
+			auto vecsize = gconf.chain_length * sizeof(double), matsize =
+					size_t(gconf.chain_length) * gconf.chain_length * sizeof(double);
 			cudaMemcpy(mp2, mp2_host.memptr(), vecsize, cudaMemcpyHostToDevice) && assertcu;
-			cudaMemcpy(get_device_address(kg_disorder::mp2), mp2, min(sizeof(kg_disorder::mp2), vecsize), cudaMemcpyDeviceToDevice) && assertcu;
+			cudaMemcpy(get_device_address(kg_disorder::mp2), mp2, min(sizeof(kg_disorder::mp2), vecsize),
+			           cudaMemcpyDeviceToDevice) && assertcu;
 
 			arma::mat interaction = diagmat(mp2_host), eigenvectors_host;
 			interaction.diag(1).fill(-1);
 			interaction.diag(-1).fill(-1);
 			interaction(0, gconf.chain_length - 1) = interaction(gconf.chain_length - 1, 0) = -1;
 			arma::vec omegas;
-			if(!arma::eig_sym(omegas, eigenvectors_host, interaction)) throw runtime_error("Cannot calculate eigensystem!");
+			if (!arma::eig_sym(omegas, eigenvectors_host, interaction))
+				throw runtime_error("Cannot calculate eigensystem!");
 			omegas = sqrt(omegas);
 
-			if(!mpi_global_coord){
+			if (!mpi_global_coord) {
 				ofstream dump_eigensystem(gconf.dump_prefix + "-omegas");
 				dump_eigensystem.exceptions(ios::failbit | ios::badbit | ios::eofbit);
-				dump_eigensystem.write((char*)omegas.memptr(), vecsize);
+				dump_eigensystem.write((char *) omegas.memptr(), vecsize);
 				dump_eigensystem.close();
 				dump_eigensystem.open(gconf.dump_prefix + "-eigenvectors");
-				dump_eigensystem.write((char*)eigenvectors_host.memptr(), matsize);
+				dump_eigensystem.write((char *) eigenvectors_host.memptr(), matsize);
 			}
 			cudaMemcpy(eigenvectors, eigenvectors_host.memptr(), matsize, cudaMemcpyHostToDevice) && assertcu;
 			loopi(gconf.chain_length) eigenvectors_host.col(i) *= omegas[i];
-			cudaMemcpy(eigenvectors_times_omega, eigenvectors_host.memptr(), matsize, cudaMemcpyHostToDevice) && assertcu;
+			cudaMemcpy(eigenvectors_times_omega, eigenvectors_host.memptr(), matsize, cudaMemcpyHostToDevice) &&
+			assertcu;
 		}
 
 		cublasHandle_t cublas = 0;
-		destructor([&]{ cublasDestroy(cublas); });
+		destructor([&] { cublasDestroy(cublas); });
 		cublasCreate(&cublas) && assertcublas;
 
 		results res(false);
@@ -96,12 +100,13 @@ namespace kg_disorder {
 		exception_ptr callback_err;
 		completion throttle;
 		uint64_t t = gconf.timebase;
-		auto dumper = [&]{
-			if(use_split_kernel) splitter.plane(gres.shard, streams[s_move], streams[s_dump]);
-			cudaMemcpyAsync(gres.shard_host, gres.shard, gconf.shard_size, cudaMemcpyDeviceToHost, streams[s_dump]) && assertcu;
-			if(!use_split_kernel) completion(streams[s_dump]).blocks(streams[s_move]);
+		auto dumper = [&] {
+			if (use_split_kernel) splitter.plane(gres.shard, streams[s_move], streams[s_dump]);
+			cudaMemcpyAsync(gres.shard_host, gres.shard, gconf.shard_size, cudaMemcpyDeviceToHost, streams[s_dump]) &&
+			assertcu;
+			if (!use_split_kernel) completion(streams[s_dump]).blocks(streams[s_move]);
 			add_cuda_callback(streams[s_dump], callback_err, [&, t](cudaError_t status) {
-				if(callback_err) return;
+				if (callback_err) return;
 				status && assertcu;
 				res.write_shard(t, gres.shard_host);
 			});
@@ -112,8 +117,8 @@ namespace kg_disorder {
 			if (throttleswitch) throttle = completion(streams[s_move]);
 			else throttle.wait();
 
-			if(t % gconf.steps_grouping_dump == 0) dumper();
-			if(!use_split_kernel) splitter.split(gres.shard, streams[s_move], streams[s_entropy]);
+			if (t % gconf.steps_grouping_dump == 0) dumper();
+			if (!use_split_kernel) splitter.split(gres.shard, streams[s_move], streams[s_entropy]);
 			completion(streams[s_entropy]).blocks(streams[s_entropy_aux]);
 			double one = 1, zero = 0;
 			cublasSetStream(cublas, streams[s_entropy]) && assertcublas;
@@ -129,26 +134,26 @@ namespace kg_disorder {
 			            eigenvectors, gconf.chain_length,
 			            &zero, projection_pi, gconf.shard_copies) && assertcublas;
 			completion(streams[s_entropy_aux]).blocks(streams[s_entropy]);
-			if(use_split_kernel) completion(streams[s_entropy]).blocks(streams[s_move]);
+			if (use_split_kernel) completion(streams[s_entropy]).blocks(streams[s_move]);
 			make_linenergies(projection_phi, projection_pi, streams[s_entropy]);
 			add_cuda_callback(streams[s_entropy], callback_err, [&, t](cudaError_t status) {
-				if(callback_err) return;
+				if (callback_err) return;
 				status && assertcu;
 				auto entropies = res.entropies(gres.linenergies_host, 0.5 / gconf.shard_copies);
 				res.check_entropy(entropies);
-				if(t % gconf.steps_grouping_dump == 0) res.write_linenergies(t);
+				if (t % gconf.steps_grouping_dump == 0) res.write_linenergies(t);
 				res.write_entropy(t, entropies);
 			});
 
 			//termination checks
-			if(callback_err) rethrow_exception(callback_err);
-			if(quit_requested && !unified_max_step){
+			if (callback_err) rethrow_exception(callback_err);
+			if (quit_requested && !unified_max_step) {
 				boost::mpi::all_reduce(mpi_global_alt, t, gconf.steps, boost::mpi::maximum<uint64_t>());
 				unified_max_step = true;
 			}
-			if(gconf.steps && gconf.steps == t){
+			if (gconf.steps && gconf.steps == t) {
 				//make sure all MPI calls are matched, use_split_kernel
-				if(!unified_max_step)
+				if (!unified_max_step)
 					boost::mpi::all_reduce(mpi_global_alt, t, gconf.steps, boost::mpi::maximum<uint64_t>());
 				break;
 			}
@@ -158,7 +163,7 @@ namespace kg_disorder {
 			finish_move.blocks(streams[s_dump]);
 
 		}
-		if(t % gconf.steps_grouping_dump != 0){
+		if (t % gconf.steps_grouping_dump != 0) {
 			dumper();
 			completion(streams[s_entropy]).wait();
 			res.write_linenergies(t);
@@ -167,6 +172,6 @@ namespace kg_disorder {
 	}
 }
 
-ginit = []{
+ginit = [] {
 	::programs()["KleinGordon-disorder"] = kg_disorder::main;
 };
