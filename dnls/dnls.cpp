@@ -15,15 +15,17 @@ namespace dnls {
 	int main(int argc, char* argv[]){
 
 		double beta;
-		bool no_linear_callback;
+		bool no_linear_callback, no_nonlinear_callback;
 		{
 			using namespace boost::program_options;
 			parse_cmdline parser("Options for "s + argv[0]);
 			parser.options.add_options()
 					("no-linear-callback", "do not use cuFFT callback for linear evolution")
+					("no-nonlinear-callback", "do not use cuFFT callback for nonlinear evolution")
 					("beta", value(&beta)->required(), "fourth order nonlinearity");
 			parser(argc, argv);
 			no_linear_callback = parser.vm.count("no-linear-callback");
+			no_nonlinear_callback = parser.vm.count("no-nonlinear-callback");
 		}
 
 		vector<double> omega_host(gconf.chain_length);
@@ -38,7 +40,7 @@ namespace dnls {
 		results res(true);
 
 		enum {
-			s_move = 0, s_callback_settings, s_dump, s_entropy, s_total
+			s_move = 0, s_linear_callback_settings, s_nonlinear_callback_settings, s_dump, s_entropy, s_total
 		};
 		cudaStream_t streams[s_total];
 		memset(streams, 0, sizeof(streams));
@@ -75,6 +77,27 @@ namespace dnls {
 				cufftDestroy(fft_elvolve_psik);
 				fft_elvolve_psik = 0;
 			} else set_device_object(gconf.chain_length, chainlen);
+		}
+
+		cufftHandle fft_elvolve_psi = 0;
+		destructor([&]{ cufftDestroy(fft_elvolve_psi); });
+		cudalist<double, true> beta_dt_symplectic_all;
+		auto beta_dt_symplectic_ptr = get_device_address(callback::beta_dt_symplectic);
+		if(!no_nonlinear_callback){
+			using namespace callback;
+			cufftPlan1d(&fft_elvolve_psi, gconf.chain_length, CUFFT_Z2Z, gconf.shard_copies) && assertcufft;
+			cufftSetStream(fft_elvolve_psi, streams[s_move]) && assertcufft;
+			auto evolve_nonlinear_ptr_host = get_device_object(evolve_nonlinear_ptr);
+			if(auto cuffterr = cufftXtSetCallback(fft_elvolve_psi, (void**)&evolve_nonlinear_ptr_host, CUFFT_CB_LD_COMPLEX_DOUBLE, 0)){
+				ostringstream nocb;
+				nocb<<process_ident<<": cannot use cuFFT callbacks ("<<assertcufft_helper::errors().at(cuffterr)<<") falling back to kernel invocations"<<endl;
+				cerr<<nocb.str();
+				cufftDestroy(fft_elvolve_psi);
+				fft_elvolve_psik = 0;
+			} else {
+				beta_dt_symplectic_all = cudalist<double, true>(8, true);
+				loopk(8) beta_dt_symplectic_all[k] = beta * gconf.dt * (k == 7 ? 2. : 1.) * symplectic_c[k];
+			}
 		}
 
 		exception_ptr callback_err;
@@ -122,15 +145,20 @@ namespace dnls {
 			}
 
 			for(uint32_t i = 0; i < gconf.steps_grouping; i++) for(int k = 0; k < 7; k++){
-				evolve_nonlinear(beta * gconf.dt * (!k && i ? 2. : 1.) * symplectic_c[k], streams[s_move]);
-				cufftExecZ2Z(fft, gres.shard, gres.shard, CUFFT_FORWARD) && assertcufft;
+				if(fft_elvolve_psi){
+					cudaMemcpyAsync(beta_dt_symplectic_ptr, &beta_dt_symplectic_all[!k && i ? 7 : k], sizeof(double), cudaMemcpyHostToDevice, streams[s_nonlinear_callback_settings]);
+					completion(streams[s_nonlinear_callback_settings]).blocks(streams[s_move]);
+				}
+				else evolve_nonlinear(beta * gconf.dt * (!k && i ? 2. : 1.) * symplectic_c[k], streams[s_move]);
+				cufftExecZ2Z(fft_elvolve_psi ?: fft, gres.shard, gres.shard, CUFFT_FORWARD) && assertcufft;
+				completion(streams[s_move]).blocks(streams[s_nonlinear_callback_settings]);
 				if(fft_elvolve_psik){
-					memset_device_object(callback::evolve_linear_table_idx, k, streams[s_callback_settings]);
-					completion(streams[s_callback_settings]).blocks(streams[s_move]);
+					memset_device_object(callback::evolve_linear_table_idx, k, streams[s_linear_callback_settings]);
+					completion(streams[s_linear_callback_settings]).blocks(streams[s_move]);
 				}
 				else evolve_linear(&evolve_linear_tables_all[k * gconf.chain_length], streams[s_move]);
 				cufftExecZ2Z(fft_elvolve_psik ?: fft, gres.shard, gres.shard, CUFFT_INVERSE) && assertcufft;
-				completion(streams[s_move]).blocks(streams[s_callback_settings]);
+				completion(streams[s_move]).blocks(streams[s_linear_callback_settings]);
 			}
 			completion finish_move = evolve_nonlinear(beta * gconf.dt * symplectic_c[7], streams[s_move]);
 			finish_move.blocks(streams[s_entropy]);

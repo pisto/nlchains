@@ -52,7 +52,15 @@ namespace dnls {
 			return psis_k[idx] * evolve_linear_table[chainlen & chainlen_mask ? idx % chainlen : idx & chainlen_mask];
 		}
 
-		__device__ const cufftCallbackLoadZ evolve_linear_ptr = evolve_linear;
+		__constant__ double beta_dt_symplectic;
+
+
+		__device__ cufftDoubleComplex evolve_nonlinear(void* in, size_t offset, void*, void*){
+			auto psi = static_cast<cufftDoubleComplex*>(in)[offset];
+			return psi * e_pow_I(beta_dt_symplectic * (psi.x * psi.x + psi.y * psi.y));
+		}
+
+		__device__ const cufftCallbackLoadZ evolve_linear_ptr = evolve_linear, evolve_nonlinear_ptr = evolve_nonlinear;
 	}
 
 

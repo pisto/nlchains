@@ -14,7 +14,8 @@ namespace dnls {
 	namespace callback{
 		extern __constant__ uint16_t chainlen;
 		extern __constant__ uint8_t evolve_linear_table_idx;
-		extern __device__ const cufftCallbackLoadZ evolve_linear_ptr;
+		extern __constant__ double beta_dt_symplectic;
+		extern __device__ const cufftCallbackLoadZ evolve_linear_ptr, evolve_nonlinear_ptr;
 	}
 
 }
