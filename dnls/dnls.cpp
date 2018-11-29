@@ -57,13 +57,11 @@ namespace dnls {
 			cudaMemcpy(evolve_linear_tables_all, evolve_linear_table_host.origin(), 8 * gconf.chain_length * sizeof(cufftDoubleComplex), cudaMemcpyHostToDevice) && assertcu;
 		}
 
-		cufftHandle fft = 0;
-		destructor([&]{ cufftDestroy(fft); });
+		cufftHandle fft = 0, fft_elvolve_psik = 0, fft_elvolve_psi = 0;
+		destructor([&]{ cufftDestroy(fft); cufftDestroy(fft_elvolve_psik); cufftDestroy(fft_elvolve_psi); });
+
 		cufftPlan1d(&fft, gconf.chain_length, CUFFT_Z2Z, gconf.shard_copies) && assertcufft;
 		cufftSetStream(fft, streams[s_move]) && assertcufft;
-
-		cufftHandle fft_elvolve_psik = 0;
-		destructor([&]{ cufftDestroy(fft_elvolve_psik); });
 		if(!no_linear_callback){
 			using namespace callback;
 			cufftPlan1d(&fft_elvolve_psik, gconf.chain_length, CUFFT_Z2Z, gconf.shard_copies) && assertcufft;
@@ -73,9 +71,6 @@ namespace dnls {
 			cufftXtSetCallback(fft_elvolve_psik, (void**)&evolve_linear_ptr_host, CUFFT_CB_LD_COMPLEX_DOUBLE, (void**)&evolve_linear_tables_all_ptr) && assertcufft;
 			set_device_object(gconf.chain_length, chainlen);
 		}
-
-		cufftHandle fft_elvolve_psi = 0;
-		destructor([&]{ cufftDestroy(fft_elvolve_psi); });
 		cudalist<double, true> beta_dt_symplectic_all;
 		auto beta_dt_symplectic_ptr = get_device_address(callback::beta_dt_symplectic);
 		if(!no_nonlinear_callback){
