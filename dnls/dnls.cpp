@@ -40,7 +40,7 @@ namespace dnls {
 		results res(true);
 
 		enum {
-			s_move = 0, s_linear_callback_settings, s_nonlinear_callback_settings, s_dump, s_entropy, s_total
+			s_move = 0, s_cb_linear, s_cb_nonlinear, s_dump, s_entropy, s_total
 		};
 		cudaStream_t streams[s_total];
 		memset(streams, 0, sizeof(streams));
@@ -57,30 +57,50 @@ namespace dnls {
 			cudaMemcpy(evolve_linear_tables_all, evolve_linear_table_host.origin(), 8 * gconf.chain_length * sizeof(cufftDoubleComplex), cudaMemcpyHostToDevice) && assertcu;
 		}
 
-		cufftHandle fft = 0, fft_elvolve_psik = 0, fft_elvolve_psi = 0;
-		destructor([&]{ cufftDestroy(fft); cufftDestroy(fft_elvolve_psik); cufftDestroy(fft_elvolve_psi); });
+		cufftHandle fft_plain = 0, fft_elvolve_psik = 0, fft_elvolve_psi = 0;
+		destructor([&]{ cufftDestroy(fft_plain); cufftDestroy(fft_elvolve_psik); cufftDestroy(fft_elvolve_psi); });
 
-		cufftPlan1d(&fft, gconf.chain_length, CUFFT_Z2Z, gconf.shard_copies) && assertcufft;
-		cufftSetStream(fft, streams[s_move]) && assertcufft;
-		if(!no_linear_callback){
-			using namespace callback;
-			cufftPlan1d(&fft_elvolve_psik, gconf.chain_length, CUFFT_Z2Z, gconf.shard_copies) && assertcufft;
-			cufftSetStream(fft_elvolve_psik, streams[s_move]) && assertcufft;
-			auto evolve_linear_ptr_host = get_device_object(evolve_linear_ptr);
-			auto evolve_linear_tables_all_ptr = *evolve_linear_tables_all;
-			cufftXtSetCallback(fft_elvolve_psik, (void**)&evolve_linear_ptr_host, CUFFT_CB_LD_COMPLEX_DOUBLE, (void**)&evolve_linear_tables_all_ptr) && assertcufft;
-			set_device_object(gconf.chain_length, chainlen);
-		}
 		cudalist<double, true> beta_dt_symplectic_all;
 		auto beta_dt_symplectic_ptr = get_device_address(callback::beta_dt_symplectic);
-		if(!no_nonlinear_callback){
-			using namespace callback;
-			cufftPlan1d(&fft_elvolve_psi, gconf.chain_length, CUFFT_Z2Z, gconf.shard_copies) && assertcufft;
-			cufftSetStream(fft_elvolve_psi, streams[s_move]) && assertcufft;
-			auto evolve_nonlinear_ptr_host = get_device_object(evolve_nonlinear_ptr);
-			cufftXtSetCallback(fft_elvolve_psi, (void**)&evolve_nonlinear_ptr_host, CUFFT_CB_LD_COMPLEX_DOUBLE, 0) && assertcufft;
-			beta_dt_symplectic_all = cudalist<double, true>(8, true);
-			loopk(8) beta_dt_symplectic_all[k] = beta * gconf.dt * (k == 7 ? 2. : 1.) * symplectic_c[k];
+		cudalist<void> area;
+		{
+			auto init_plan = [&](cufftHandle &fft){
+				size_t dummy;
+				cufftCreate(&fft) && assertcufft;
+				cufftSetAutoAllocation(fft, false) && assertcufft;
+				cufftMakePlan1d(fft, gconf.chain_length, CUFFT_Z2Z, gconf.shard_copies, &dummy) && assertcufft;
+				cufftSetStream(fft, streams[s_move]) && assertcufft;
+			};
+			size_t maxsize = 0;
+			auto update_max_size = [&](cufftHandle fft) {
+				size_t size;
+				cufftGetSize(fft, &size) && assertcufft;
+				maxsize = max(maxsize, size);
+			};
+			init_plan(fft_plain);
+			update_max_size(fft_plain);
+			if (!no_linear_callback) {
+				init_plan(fft_elvolve_psik);
+				auto evolve_linear_ptr_host = get_device_object(callback::evolve_linear_ptr);
+				auto evolve_linear_tables_all_ptr = *evolve_linear_tables_all;
+				cufftXtSetCallback(fft_elvolve_psik, (void **) &evolve_linear_ptr_host, CUFFT_CB_LD_COMPLEX_DOUBLE,
+				                   (void **) &evolve_linear_tables_all_ptr) && assertcufft;
+				set_device_object(gconf.chain_length, callback::chainlen);
+				update_max_size(fft_elvolve_psik);
+			}
+			if (!no_nonlinear_callback) {
+				init_plan(fft_elvolve_psi);
+				auto evolve_nonlinear_ptr_host = get_device_object(callback::evolve_nonlinear_ptr);
+				cufftXtSetCallback(fft_elvolve_psi, (void **) &evolve_nonlinear_ptr_host, CUFFT_CB_LD_COMPLEX_DOUBLE,
+				                   0) && assertcufft;
+				beta_dt_symplectic_all = cudalist<double, true>(8, true);
+				loopk(8) beta_dt_symplectic_all[k] = beta * gconf.dt * (k == 7 ? 2. : 1.) * symplectic_c[k];
+				update_max_size(fft_elvolve_psi);
+			}
+			area = maxsize;
+			cufftSetWorkArea(fft_plain, area) && assertcufft;
+			if (!no_linear_callback) cufftSetWorkArea(fft_elvolve_psik, area) && assertcufft;;
+			if (!no_nonlinear_callback) cufftSetWorkArea(fft_elvolve_psi, area) && assertcufft;;
 		}
 
 		exception_ptr callback_err;
@@ -102,7 +122,7 @@ namespace dnls {
 			else throttle.wait();
 
 			if(t % gconf.steps_grouping_dump == 0) dumper();
-			cufftExecZ2Z(fft, gres.shard, psis_k, CUFFT_FORWARD) && assertcufft;
+			cufftExecZ2Z(fft_plain, gres.shard, psis_k, CUFFT_FORWARD) && assertcufft;
 			completion(streams[s_move]).blocks(streams[s_entropy]);
 			make_linenergies(psis_k, omega, streams[s_entropy]);
 			add_cuda_callback(streams[s_entropy], callback_err, [&, t](cudaError_t status) {
@@ -129,19 +149,19 @@ namespace dnls {
 
 			for(uint32_t i = 0; i < gconf.steps_grouping; i++) for(int k = 0; k < 7; k++){
 				if(fft_elvolve_psi){
-					cudaMemcpyAsync(beta_dt_symplectic_ptr, &beta_dt_symplectic_all[!k && i ? 7 : k], sizeof(double), cudaMemcpyHostToDevice, streams[s_nonlinear_callback_settings]);
-					completion(streams[s_nonlinear_callback_settings]).blocks(streams[s_move]);
+					cudaMemcpyAsync(beta_dt_symplectic_ptr, &beta_dt_symplectic_all[!k && i ? 7 : k], sizeof(double), cudaMemcpyHostToDevice, streams[s_cb_nonlinear]);
+					completion(streams[s_cb_nonlinear]).blocks(streams[s_move]);
 				}
 				else evolve_nonlinear(beta * gconf.dt * (!k && i ? 2. : 1.) * symplectic_c[k], streams[s_move]);
-				cufftExecZ2Z(fft_elvolve_psi ?: fft, gres.shard, gres.shard, CUFFT_FORWARD) && assertcufft;
-				completion(streams[s_move]).blocks(streams[s_nonlinear_callback_settings]);
+				cufftExecZ2Z(fft_elvolve_psi ?: fft_plain, gres.shard, gres.shard, CUFFT_FORWARD) && assertcufft;
+				completion(streams[s_move]).blocks(streams[s_cb_nonlinear]);
 				if(fft_elvolve_psik){
-					memset_device_object(callback::evolve_linear_table_idx, k, streams[s_linear_callback_settings]);
-					completion(streams[s_linear_callback_settings]).blocks(streams[s_move]);
+					memset_device_object(callback::evolve_linear_table_idx, k, streams[s_cb_linear]);
+					completion(streams[s_cb_linear]).blocks(streams[s_move]);
 				}
 				else evolve_linear(&evolve_linear_tables_all[k * gconf.chain_length], streams[s_move]);
-				cufftExecZ2Z(fft_elvolve_psik ?: fft, gres.shard, gres.shard, CUFFT_INVERSE) && assertcufft;
-				completion(streams[s_move]).blocks(streams[s_linear_callback_settings]);
+				cufftExecZ2Z(fft_elvolve_psik ?: fft_plain, gres.shard, gres.shard, CUFFT_INVERSE) && assertcufft;
+				completion(streams[s_move]).blocks(streams[s_cb_linear]);
 			}
 			completion finish_move = evolve_nonlinear(beta * gconf.dt * symplectic_c[7], streams[s_move]);
 			finish_move.blocks(streams[s_entropy]);
