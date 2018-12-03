@@ -36,6 +36,9 @@ map<std::string, function<int(int argc, char *argv[])>> &programs() {
 	return progs;
 };
 
+/*
+ * Get exceptions instead of asserts from boost.
+ */
 namespace boost {
 	void assertion_failed(const char *expr, const char *function, const char *file, long line) {
 		throw logic_error("Boost assert failed: "s + expr + ", at " + file + ":" + to_string(line) + " in " + function);
@@ -96,21 +99,23 @@ void parse_cmdline::operator()(int argc, char *argv[]) try {
 	if (gconf.timebase && gconf.steps && gconf.timebase >= gconf.steps)
 		throw invalid_argument("timebase must be less than steps");
 
-	gconf.linenergy_size = sizeof(double) * gconf.chain_length;
+	gconf.sizeof_linenergies = sizeof(double) * gconf.chain_length;
 	if (uint64_t(gconf.chain_length) * gconf.shard_copies >= 0x40000000ULL)
 		throw invalid_argument("(chain_length * copies) / total_GPUs must be <= 2^30");
 	gconf.shard_elements = uint32_t(gconf.chain_length) * gconf.shard_copies;
-	gconf.shard_size = sizeof(double2) * gconf.shard_elements;
+	gconf.sizeof_shard = sizeof(double2) * gconf.shard_elements;
 	gres.shard = cudalist<double2>(gconf.shard_elements);
 	gres.linenergies = cudalist<double>(gconf.chain_length);
 	gres.shard_host = cudalist<double2, true>(gconf.shard_elements, false);
 	gres.linenergies_host = cudalist<double, true>(gconf.chain_length, false);
 	cudaMemset(gres.linenergies, 0, sizeof(double) * gconf.chain_length) && assertcu;
 	memset(gres.linenergies_host, 0, sizeof(double) * gconf.chain_length);
+	//XXX catching ios_base::failure does not work with gcc 5/6, see https://gcc.gnu.org/bugzilla/show_bug.cgi?id=66145
+	//working around it would be difficult and ugly, let's just hope software stacks move on.
 	try {
 		ifstream initial_state(initial_filename);
 		initial_state.exceptions(ios::failbit | ios::badbit | ios::eofbit);
-		initial_state.seekg(gconf.shard_size * mpi_global_coord).read((char *) *gres.shard_host, gconf.shard_size);
+		initial_state.seekg(gconf.sizeof_shard * mpi_global_coord).read((char *) *gres.shard_host, gconf.sizeof_shard);
 	} catch (const ios_base::failure &e) {
 		throw ios_base::failure("could not read initial state ("s + e.what() + ")", e.code());
 	}
@@ -126,7 +131,7 @@ void parse_cmdline::operator()(int argc, char *argv[]) try {
 		} catch (const ios_base::failure &e) {
 			throw ios_base::failure("could not read entropy mask file ("s + e.what() + ")", e.code());
 		}
-	cudaMemcpy(gres.shard, gres.shard_host, gconf.shard_size, cudaMemcpyHostToDevice) && assertcu;
+	cudaMemcpy(gres.shard, gres.shard_host, gconf.sizeof_shard, cudaMemcpyHostToDevice) && assertcu;
 
 } catch (const invalid_argument &e) {
 	ostringstream fmtmsg;
@@ -163,7 +168,7 @@ int main(int argc, char **argv) try {
 	cudaSetDevice(mpi_node_coord) && assertcu;
 	destructor([] {
 		destructor(cudaDeviceSynchronize);
-		gres = resources();
+		gres = resources();     //reset resources
 		cudaDeviceReset();
 	});
 	{

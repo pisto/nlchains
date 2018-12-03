@@ -32,6 +32,7 @@ namespace kg_disorder {
 				ifstream ms(m_fname);
 				ms.exceptions(ios::failbit | ios::badbit | ios::eofbit);
 				ms.read((char *) mp2_host.memptr(), gconf.chain_length * sizeof(double));
+			//XXX see comment on catching ios_base::failure in common/main.cpp
 			} catch (const ios_base::failure &e) {
 				throw ios::failure("could not read m file ("s + e.what() + ")", e.code());
 			}
@@ -73,6 +74,13 @@ namespace kg_disorder {
 			assertcu;
 		}
 
+		/*
+		 * The projection over the eigenvectors is implemented as a matrix multiplication (cublasDgemm).
+		 * The shard is put into split format (phi/pi, chain, copy), and matrix-multiplied with the eigenvectors
+		 * matrix. Note that this works because cuBLAS uses column-major indexing, so it sees the transposed shard
+		 * matrices as (phi/pi, copy, chain)-indexed. The eigenvectors matrix used with the phi shard is multiplied
+		 * by omega already, that would be otherwise an adjustement to be done after the squaring of the projections.
+		 */
 		cublasHandle_t cublas = 0;
 		destructor([&] { cublasDestroy(cublas); });
 		cublasCreate(&cublas) && assertcublas;
@@ -102,7 +110,7 @@ namespace kg_disorder {
 		uint64_t t = gconf.timebase;
 		auto dumper = [&] {
 			if (use_split_kernel) splitter.plane(gres.shard, streams[s_move], streams[s_dump]);
-			cudaMemcpyAsync(gres.shard_host, gres.shard, gconf.shard_size, cudaMemcpyDeviceToHost, streams[s_dump]) &&
+			cudaMemcpyAsync(gres.shard_host, gres.shard, gconf.sizeof_shard, cudaMemcpyDeviceToHost, streams[s_dump]) &&
 			assertcu;
 			if (!use_split_kernel) completion(streams[s_dump]).blocks(streams[s_move]);
 			add_cuda_callback(streams[s_dump], callback_err, [&, t](cudaError_t status) {

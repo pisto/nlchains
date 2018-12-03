@@ -9,7 +9,11 @@
 #include <cublas_v2.h>
 
 /*
- * Cuda errors to exceptions translation, same as assertmpi.
+ * Cuda errors to exceptions translation, same as assertmpi in utilities.h.
+ * Use as
+ *      cuda*(...) && assertcu;
+ *      cufft*(...) && assertcufft;
+ *      cublas*(...) && assertcublas;
  */
 
 #define assertcu assertcu_helper{ __FILE__ ":" + std::to_string(__LINE__) }
@@ -153,7 +157,7 @@ void memset_device_object(T &on_device, int value, cudaStream_t stream = 0) {
 }
 
 /*
- * Device or host pinned memory wrapper for automatic deletion.
+ * Device or host pinned memory wrapper with RAII.
  */
 
 template<typename T = void, bool host = false>
@@ -261,7 +265,8 @@ private:
 };
 
 /*
- * Struct to synchronize work between streams or host.
+ * completion represents a time point in a stream. It is used to easily synchronize between streams,
+ * and to make the host wait on stream completions. This is essentially a wrapper struct around cudaEvent_t.
  */
 
 struct completion {
@@ -317,7 +322,8 @@ private:
 };
 
 /*
- * Lambda -> cudaCallback transform. Guards against exceptions that can wreak havoc on CUDA.
+ * Lambda -> cudaCallback transform. All exceptions are caught and set on the provided
+ * exception_ptr reference, to be read by your main thread.
  */
 
 #include <iostream>
@@ -351,8 +357,9 @@ void add_cuda_callback(cudaStream_t stream, std::exception_ptr &callback_err, L 
 /*
  * Helper class to print runtime optimization hints about kernels.
  * Use as
- *      static auto your_kernel_info = make_kernel_info(your_kernel[, print_to_std_cerr]);
- * your_kernel_info.best_linear_block contains the block size that ensures maximum occupancy of the device.
+ *      static auto your_kernel_info = make_kernel_info(your_kernel);
+ * If your kernel has a 1D structure, you can call linear_configuration(elements, print_verbose) to get the optimal
+ * block/grid size.
  */
 
 #define make_kernel_info_name(k, name) kernel_info<decltype(&k)>(k, name)
@@ -406,7 +413,7 @@ private:
 };
 
 /*
- * Move from planar (copy, chain index, real/img indexes) to split (real/img, chain, copy) representations of the chains
+ * Move from planar (copy, chain index, real/img indexes) to split (real/img, chain, copy) representations of the chains.
  */
 
 struct plane2split {
@@ -450,6 +457,7 @@ __device__ inline cufftDoubleComplex &operator*=(cufftDoubleComplex &a, const cu
 	return (a = a * b);
 }
 
+//e^(i x), i = imaginary unit
 __device__ inline cufftDoubleComplex e_pow_I(double x) {
 	double sin, cos;
 	sincos(x, &sin, &cos);

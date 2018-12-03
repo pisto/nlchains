@@ -36,7 +36,7 @@ namespace kg_fpu_toda {
 			}
 			for (int k = -1; k >= -int(gconf.chain_length - 1) / 2; k--)
 				omega_host[gconf.chain_length + k] = omega_host[-k];
-			cudaMemcpy(omega, omega_host.data(), gconf.linenergy_size, cudaMemcpyHostToDevice) && assertcu;
+			cudaMemcpy(omega, omega_host.data(), gconf.sizeof_linenergies, cudaMemcpyHostToDevice) && assertcu;
 		}
 
 		results res(m == 0.);
@@ -49,9 +49,11 @@ namespace kg_fpu_toda {
 		destructor([&] { for (auto stream : streams) cudaStreamDestroy(stream); });
 		for (auto &stream : streams) cudaStreamCreateWithFlags(&stream, cudaStreamNonBlocking) && assertcu;
 
-		//FFT is performed on the data that is first converted to complex format and transposed into
-		//an array with indices { real/img, copy, chain_index }. This allows to simply double the batch
-		//size of the FFT (gconf.shard_copies * 2) to transform both phi and pi.
+		/*
+		 * FFT for the linear energies is performed on the data that is first converted to complex format
+		 * (real = phi, imaginary = pi), and transposed into an array with indices { real/img, copy, chain_index }.
+		 * This allows to simply double the batch size of the FFT (gconf.shard_copies * 2) to transform both phi and pi.
+		 */
 		cudalist<double2> fft_phi(gconf.shard_elements * 2);
 		auto fft_pi = &fft_phi[gconf.shard_elements];
 		cufftHandle fft_plan = 0;
@@ -81,7 +83,7 @@ namespace kg_fpu_toda {
 		completion throttle;
 		uint64_t t = gconf.timebase;
 		auto dumper = [&] {
-			cudaMemcpyAsync(gres.shard_host, gres.shard, gconf.shard_size, cudaMemcpyDeviceToHost, streams[s_dump]) &&
+			cudaMemcpyAsync(gres.shard_host, gres.shard, gconf.sizeof_shard, cudaMemcpyDeviceToHost, streams[s_dump]) &&
 			assertcu;
 			if (!splitter) completion(streams[s_dump]).blocks(streams[s_move]);
 			add_cuda_callback(streams[s_dump], callback_err, [&, t](cudaError_t status) {
@@ -111,7 +113,7 @@ namespace kg_fpu_toda {
 			make_linenergies(fft_phi, fft_pi, omega, streams[s_entropy]);
 			//cleanup buffer for next FFT
 			completion(streams[s_entropy]).blocks(streams[s_entropy_aux]);
-			cudaMemsetAsync(fft_phi, 0, gconf.shard_size * 2, streams[s_entropy_aux]) && assertcu;
+			cudaMemsetAsync(fft_phi, 0, gconf.sizeof_shard * 2, streams[s_entropy_aux]) && assertcu;
 			add_cuda_callback(streams[s_entropy], callback_err, [&, t](cudaError_t status) {
 				if (callback_err) return;
 				status && assertcu;

@@ -44,5 +44,6 @@ array<double, 2> results::entropies(const double *shard_linenergies, double norm
 		totaleloge += e * loge;
 	}
 	double normalization = modes_tot / totale, lognormalization = log(normalization);
+	//{ sum(log(e'(k))), sum(e'(k)log(e'(k))) }, with e'(k) = total_modes/linear_energy_total*linear_energy(k)
 	return {-(totalloge + modes_tot * lognormalization), normalization * (totaleloge + lognormalization * totale)};
 }

@@ -20,6 +20,10 @@ __global__ void unsplit_kernel(uint32_t elements, const double *real, const doub
 	planar[idx] = {real[idx], img[idx]};
 }
 
+/*
+ * The transposition is implemented with the cuBLAS operation cublasZgeam.
+ */
+
 plane2split::plane2split(uint16_t chainlen, uint16_t shard_copies) :
 		chainlen(chainlen), shard_copies(shard_copies), elements(uint32_t(shard_copies) * chainlen),
 		real_transposed(elements * 2), img_transposed((double *) real_transposed + elements),

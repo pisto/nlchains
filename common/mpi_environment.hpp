@@ -55,6 +55,10 @@ namespace boost {
 	}
 }
 
+/*
+ * A string identifying this MPI process, for logging.
+ */
+
 extern const std::string process_ident;
 
 /*

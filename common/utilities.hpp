@@ -1,5 +1,9 @@
 #pragma once
 
+/*
+ * Some utilities to cleanup code.
+ */
+
 #include <cstdint>
 
 //looping

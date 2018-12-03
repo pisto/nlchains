@@ -39,6 +39,11 @@ namespace dnls {
 		cudalist<cufftDoubleComplex> psis_k(gconf.shard_elements);
 		results res(true);
 
+		/*
+		 * Integrating the DNLS amounts to running a lot of FFTs, because the Yoshida symplectic integrator
+		 * essentially turns into a split-step algorithm, where the operators are the linear and nonlinear
+		 * parts of the equation of motion. See http://arxiv.org/abs/1012.3242v1 .
+		 */
 		enum {
 			s_move = 0, s_cb_linear, s_cb_nonlinear, s_dump, s_entropy, s_total
 		};
@@ -47,6 +52,10 @@ namespace dnls {
 		destructor([&] { for (auto stream : streams) cudaStreamDestroy(stream); });
 		for (auto &stream : streams) cudaStreamCreateWithFlags(&stream, cudaStreamNonBlocking) && assertcu;
 
+		/*
+		 * Precompute the evolution factors in Fourier space (linear operator), including FFT normalization, for all
+		 * the symplectic integration steps.
+		 */
 		cudalist<cufftDoubleComplex> evolve_linear_tables_all(8 * gconf.chain_length);
 		{
 			boost::multi_array<complex<double>, 2> evolve_linear_table_host(boost::extents[8][gconf.chain_length]);
@@ -59,6 +68,13 @@ namespace dnls {
 			           8 * gconf.chain_length * sizeof(cufftDoubleComplex), cudaMemcpyHostToDevice) && assertcu;
 		}
 
+		/*
+		 * Three fft plans are required because of the nonlinear/linear evolution callbacks.
+		 * The plain fft plan is used to make the linear energies, and in case that the user disabled
+		 * callbacks.
+		 * The settings for the callbacks (the symplectic time step, or the linear evolution table)
+		 * is set on global variables asynchronously with additional streams.
+		 */
 		cufftHandle fft_plain = 0, fft_elvolve_psik = 0, fft_elvolve_psi = 0;
 		destructor([&] {
 			cufftDestroy(fft_plain);
@@ -78,7 +94,7 @@ namespace dnls {
 				cufftSetStream(fft, streams[s_move]) && assertcufft;
 			};
 			size_t maxsize = 0;
-			auto update_max_size = [&](cufftHandle fft) {
+			auto update_max_size = [&](cufftHandle fft) {   //use only one work area
 				size_t size;
 				cufftGetSize(fft, &size) && assertcufft;
 				maxsize = max(maxsize, size);
@@ -113,7 +129,7 @@ namespace dnls {
 		completion throttle;
 		uint64_t t = gconf.timebase;
 		auto dumper = [&] {
-			cudaMemcpyAsync(gres.shard_host, gres.shard, gconf.shard_size, cudaMemcpyDeviceToHost, streams[s_dump]) &&
+			cudaMemcpyAsync(gres.shard_host, gres.shard, gconf.sizeof_shard, cudaMemcpyDeviceToHost, streams[s_dump]) &&
 			assertcu;
 			completion(streams[s_dump]).blocks(streams[s_move]);
 			add_cuda_callback(streams[s_dump], callback_err, [&, t](cudaError_t status) {

@@ -6,6 +6,7 @@
 
 /*
  * Global configuration and resources.
+ * A shard is the portion of ensemble chain replications that the GPU owns.
  */
 
 extern struct configuration {
@@ -24,7 +25,7 @@ extern struct configuration {
 		NONE = 0, INFORMATION, WT
 	} entropy_limit_type = NONE;
 
-	size_t linenergy_size, shard_size;
+	size_t sizeof_linenergies, sizeof_shard;
 	std::vector<uint16_t> entropy_modes_indices;
 
 } gconf;
@@ -44,6 +45,9 @@ struct parse_cmdline {
 	void operator()(int argc, char *argv[]);
 
 	std::string initial_filename, entropymask_filename;
+	/*
+	 * Throw this to terminate gracefully and print the boost options.
+	 */
 	struct help_quit {
 		const boost::program_options::options_description options;
 	};
