@@ -13,13 +13,12 @@ namespace kg_fpu_toda {
 	int main(int argc, char *argv[]) {
 
 		bool use_split_kernel = false;
-		double m, alpha, beta;
+		double m = 0., alpha = 0., beta;
 		{
 			using namespace boost::program_options;
 			parse_cmdline parser("Options for "s + argv[0]);
 			if (model == KG) parser.options.add_options()(",m", value(&m)->required(), "linear parameter m");
-			if (model != KG)
-				parser.options.add_options()("alpha", value(&alpha)->required(), "third order nonlinearity");
+			else parser.options.add_options()("alpha", value(&alpha)->required(), "third order nonlinearity");
 			parser.options.add_options()
 					("beta", value(&beta)->required(), "fourth order nonlinearity")
 					("split-kernel", "force use of split kernel");
