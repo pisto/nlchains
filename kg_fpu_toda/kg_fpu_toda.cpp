@@ -3,6 +3,7 @@
 #include "../common/utilities.hpp"
 #include "../common/results.hpp"
 #include "../common/symplectic.hpp"
+#include "../common/loop_control.hpp"
 #include "kg_fpu_toda.hpp"
 
 using namespace std;
@@ -78,27 +79,21 @@ namespace kg_fpu_toda {
 		}
 		destructor([&] { delete splitter; });
 
-		exception_ptr callback_err;
-		completion throttle;
-		uint64_t t = gconf.timebase;
+		loop_control loop_ctl(streams[s_move]);
 		auto dumper = [&] {
 			cudaMemcpyAsync(gres.shard_host, gres.shard, gconf.sizeof_shard, cudaMemcpyDeviceToHost, streams[s_dump]) &&
 			assertcu;
 			if (!splitter) completion(streams[s_dump]).blocks(streams[s_move]);
-			add_cuda_callback(streams[s_dump], callback_err, [&, t](cudaError_t status) {
-				if (callback_err) return;
+			add_cuda_callback(streams[s_dump], loop_ctl.callback_err, [&, t = *loop_ctl](cudaError_t status) {
+				if (loop_ctl.callback_err) return;
 				status && assertcu;
 				res.write_shard(t, gres.shard_host);
 			});
 		};
 		destructor(cudaDeviceSynchronize);
-		for (bool unified_max_step = false, throttleswitch = true;; t += gconf.steps_grouping, throttleswitch ^= true) {
-			//throttle enqueuing of kernels
-			if (throttleswitch) throttle = completion(streams[s_move]);
-			else throttle.wait();
-
+		while (1) {
 			if (splitter) splitter->plane(gres.shard, streams[s_move], streams[s_dump]).blocks(streams[s_entropy]);
-			if (t % gconf.steps_grouping_dump == 0) dumper();
+			if (loop_ctl % gconf.steps_grouping_dump == 0) dumper();
 			//entropy stream is already synced to move or dump stream, that is the readiness of the planar representation
 			completion(streams[s_entropy]).blocks(streams[s_entropy_aux]);
 			//interleave phi and pi with zeroes, since we do a complex FFT
@@ -113,8 +108,8 @@ namespace kg_fpu_toda {
 			//cleanup buffer for next FFT
 			completion(streams[s_entropy]).blocks(streams[s_entropy_aux]);
 			cudaMemsetAsync(fft_phi, 0, gconf.sizeof_shard * 2, streams[s_entropy_aux]) && assertcu;
-			add_cuda_callback(streams[s_entropy], callback_err, [&, t](cudaError_t status) {
-				if (callback_err) return;
+			add_cuda_callback(streams[s_entropy], loop_ctl.callback_err, [&, t = *loop_ctl](cudaError_t status) {
+				if (loop_ctl.callback_err) return;
 				status && assertcu;
 				auto entropies = res.entropies(gres.linenergies_host, (0.5 / gconf.shard_copies) / gconf.chain_length);
 				res.check_entropy(entropies);
@@ -123,28 +118,19 @@ namespace kg_fpu_toda {
 			});
 			completion(streams[s_entropy_aux]).blocks(streams[s_entropy]);
 
-			//termination checks
-			if (callback_err) rethrow_exception(callback_err);
-			if (quit_requested && !unified_max_step) {
-				boost::mpi::all_reduce(mpi_global_alt, t, gconf.steps, boost::mpi::maximum<uint64_t>());
-				unified_max_step = true;
-			}
-			if (gconf.steps && gconf.steps == t) {
-				//make sure all MPI calls are matched, use_split_kernel
-				if (!unified_max_step)
-					boost::mpi::all_reduce(mpi_global_alt, t, gconf.steps, boost::mpi::maximum<uint64_t>());
-				break;
-			}
+			if (loop_ctl.break_now()) break;
 
 			completion finish_move = move<model>(splitter, streams[s_move]);
 			finish_move.blocks(streams[s_entropy]);
 			finish_move.blocks(streams[s_dump]);
 
+			loop_ctl += gconf.steps_grouping;
 		}
-		if (t % gconf.steps_grouping_dump != 0) {
+
+		if (loop_ctl % gconf.steps_grouping_dump != 0) {
 			dumper();
 			completion(streams[s_entropy]).wait();
-			res.write_linenergies(t);
+			res.write_linenergies(loop_ctl);
 		}
 		return 0;
 	}

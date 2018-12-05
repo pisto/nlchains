@@ -16,7 +16,7 @@ configuration gconf;
 resources gres;
 
 const environment mpienv(threading::multiple, false);
-const communicator mpi_global, mpi_global_alt(mpi_global, comm_duplicate);
+const communicator mpi_global;
 const int mpi_global_coord = mpi_global.rank(), mpi_node_coord = [] {
 	MPI_Comm node;
 	/*

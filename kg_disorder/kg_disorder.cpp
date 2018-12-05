@@ -5,6 +5,7 @@
 #include "../common/configuration.hpp"
 #include "../common/results.hpp"
 #include "../common/symplectic.hpp"
+#include "../common/loop_control.hpp"
 #include "kg_disorder.hpp"
 
 using namespace std;
@@ -105,27 +106,21 @@ namespace kg_disorder {
 		plane2split splitter(gconf.chain_length, gconf.shard_copies);
 		splitter.split(gres.shard, streams[s_move]);
 
-		exception_ptr callback_err;
-		completion throttle;
-		uint64_t t = gconf.timebase;
+		loop_control loop_ctl(streams[s_move]);
 		auto dumper = [&] {
 			if (use_split_kernel) splitter.plane(gres.shard, streams[s_move], streams[s_dump]);
 			cudaMemcpyAsync(gres.shard_host, gres.shard, gconf.sizeof_shard, cudaMemcpyDeviceToHost, streams[s_dump]) &&
 			assertcu;
 			if (!use_split_kernel) completion(streams[s_dump]).blocks(streams[s_move]);
-			add_cuda_callback(streams[s_dump], callback_err, [&, t](cudaError_t status) {
-				if (callback_err) return;
+			add_cuda_callback(streams[s_dump], loop_ctl.callback_err, [&, t = *loop_ctl](cudaError_t status) {
+				if (loop_ctl.callback_err) return;
 				status && assertcu;
 				res.write_shard(t, gres.shard_host);
 			});
 		};
 		destructor(cudaDeviceSynchronize);
-		for (bool unified_max_step = false, throttleswitch = true;; t += gconf.steps_grouping, throttleswitch ^= true) {
-			//throttle enqueuing of kernels
-			if (throttleswitch) throttle = completion(streams[s_move]);
-			else throttle.wait();
-
-			if (t % gconf.steps_grouping_dump == 0) dumper();
+		while (1) {
+			if (loop_ctl % gconf.steps_grouping_dump == 0) dumper();
 			if (!use_split_kernel) splitter.split(gres.shard, streams[s_move], streams[s_entropy]);
 			completion(streams[s_entropy]).blocks(streams[s_entropy_aux]);
 			double one = 1, zero = 0;
@@ -144,8 +139,8 @@ namespace kg_disorder {
 			completion(streams[s_entropy_aux]).blocks(streams[s_entropy]);
 			if (use_split_kernel) completion(streams[s_entropy]).blocks(streams[s_move]);
 			make_linenergies(projection_phi, projection_pi, streams[s_entropy]);
-			add_cuda_callback(streams[s_entropy], callback_err, [&, t](cudaError_t status) {
-				if (callback_err) return;
+			add_cuda_callback(streams[s_entropy], loop_ctl.callback_err, [&, t = *loop_ctl](cudaError_t status) {
+				if (loop_ctl.callback_err) return;
 				status && assertcu;
 				auto entropies = res.entropies(gres.linenergies_host, 0.5 / gconf.shard_copies);
 				res.check_entropy(entropies);
@@ -153,28 +148,19 @@ namespace kg_disorder {
 				res.write_entropy(t, entropies);
 			});
 
-			//termination checks
-			if (callback_err) rethrow_exception(callback_err);
-			if (quit_requested && !unified_max_step) {
-				boost::mpi::all_reduce(mpi_global_alt, t, gconf.steps, boost::mpi::maximum<uint64_t>());
-				unified_max_step = true;
-			}
-			if (gconf.steps && gconf.steps == t) {
-				//make sure all MPI calls are matched, use_split_kernel
-				if (!unified_max_step)
-					boost::mpi::all_reduce(mpi_global_alt, t, gconf.steps, boost::mpi::maximum<uint64_t>());
-				break;
-			}
+			if (loop_ctl.break_now()) break;
 
 			completion finish_move = move(splitter, use_split_kernel, mp2, streams[s_move]);
 			finish_move.blocks(streams[s_entropy]);
 			finish_move.blocks(streams[s_dump]);
 
+			loop_ctl += gconf.steps_grouping;
 		}
-		if (t % gconf.steps_grouping_dump != 0) {
+
+		if (loop_ctl % gconf.steps_grouping_dump != 0) {
 			dumper();
 			completion(streams[s_entropy]).wait();
-			res.write_linenergies(t);
+			res.write_linenergies(loop_ctl);
 		}
 		return 0;
 	}

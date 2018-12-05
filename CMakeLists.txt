@@ -55,7 +55,7 @@ set_source_files_properties(kg_fpu_toda/kg_fpu_toda.cu kg_disorder/kg_disorder.c
 
 #link/build flags
 add_executable(nlchains
-        common/main.cpp common/results.cpp common/utilities_cuda.cu common/results_entropy.cpp
+        common/main.cpp common/results.cpp common/utilities_cuda.cu common/results_entropy.cpp common/loop_control.cpp
         kg_fpu_toda/kg_fpu_toda.cpp kg_fpu_toda/kg_fpu_toda.cu
         kg_disorder/kg_disorder.cpp kg_disorder/kg_disorder.cu
         dnls/dnls.cpp dnls/dnls.cu)
