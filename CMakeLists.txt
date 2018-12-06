@@ -1,8 +1,8 @@
 cmake_minimum_required(VERSION 3.9)
 project(nlchains LANGUAGES CXX CUDA)
 
-if(NOT "${CMAKE_CXX_COMPILER_ID}" MATCHES "GNU")
-    message(WARNING "Only the GCC compiler has been tested.")
+if(NOT "${CMAKE_CXX_COMPILER_ID}" MATCHES "GNU" OR NOT "${CMAKE_SYSTEM_NAME}" MATCHES "Linux")
+    message(WARNING "Only the GCC compiler has been tested under Linux.")
 endif()
 
 set(CMAKE_CXX_STANDARD 14)
@@ -10,11 +10,39 @@ set(CMAKE_CUDA_STANDARD 14)
 
 
 #libraries and paths
+
+if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    link_libraries(-Xlinker --as-needed)
+endif()
+
+set(portable "0" CACHE STRING "Link in static libraries where possible")
+if(portable)
+    #Using -static is a nightmare. Just prefer static libraries.
+    set(CUBLAS_LIB -lcublas_static)
+    set(CMAKE_FIND_LIBRARY_SUFFIXES .a ${CMAKE_FIND_LIBRARY_SUFFIXES})
+    set(Boost_USE_STATIC_LIBS 1)
+    set(BLA_STATIC 1)
+    if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+        link_libraries(-static-libgcc -static-libstdc++)
+    endif()
+else()
+    set(CUBLAS_LIB -lcublas)
+endif()
+
 #CUDA cub (maybe here as a sub-module, maybe system-wise)
 include_directories(cub/)
 
 find_package(MPI REQUIRED)
 include_directories(${MPI_INCLUDE_PATH})
+add_definitions(-DMPICH_SKIP_MPICXX -DOMPI_SKIP_MPICXX)     #try not to reference MPI C++ bindings
+if(${CMAKE_VERSION} VERSION_GREATER_EQUAL "3.13.0")
+    add_compile_options("${MPI_CXX_COMPILE_OPTIONS}")
+elseif(MPI_CXX_COMPILE_OPTIONS MATCHES "[^ ]")
+    #XXX MPI_CXX_COMPILE_OPTIONS may contain -pthread, and that is not consumed by nvcc without -Xcompiler.
+    #https://gitlab.kitware.com/cmake/cmake/issues/18008
+    #if you need this line just patch it manually
+    message(WARNING "Leaving out MPI flags ${MPI_CXX_COMPILE_OPTIONS} because of a CMake bug (https://gitlab.kitware.com/cmake/cmake/issues/18008), add them manually if you really need them")
+endif()
 
 add_definitions(-DBOOST_ENABLE_ASSERT_HANDLER)
 find_package(Boost REQUIRED mpi program_options)
@@ -36,7 +64,7 @@ endif()
 if(CMAKE_BUILD_TYPE MATCHES Rel)
     #aid SIMD vectorization in results_entropy.cpp
     if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
-        set_property(SOURCE common/results_entropy.cpp APPEND_STRING PROPERTY COMPILE_FLAGS " -Ofast ")
+        set_property(SOURCE common/results_entropy.cpp APPEND PROPERTY COMPILE_FLAGS "-Ofast")
     endif()
     find_package(OpenMP)
     if(OpenMP_CXX_FOUND)
@@ -45,8 +73,7 @@ if(CMAKE_BUILD_TYPE MATCHES Rel)
 endif()
 
 #targeted optimization for different values of -chain_length
-set(optimized_chain_length 0 CACHE STRING
-        "Create optimized kernels for optimized_chain_length")
+set(optimized_chain_length 0 CACHE STRING "Create optimized kernels for optimized_chain_length")
 if(NOT optimized_chain_length MATCHES "^[0-9]+$" OR optimized_chain_length LESS 32)
     message(FATAL_ERROR "please specify -Doptimized_chain_length= as a number >= 32")
 endif()
@@ -59,13 +86,14 @@ add_executable(nlchains
         kg_fpu_toda/kg_fpu_toda.cpp kg_fpu_toda/kg_fpu_toda.cu
         kg_disorder/kg_disorder.cpp kg_disorder/kg_disorder.cu
         dnls/dnls.cpp dnls/dnls.cu)
-set_property(TARGET nlchains PROPERTY CUDA_SEPARABLE_COMPILATION ON)
-target_link_libraries(nlchains ${Boost_LIBRARIES} ${MPI_CXX_LIBRARIES} ${ARMADILLO_LIBRARIES} -lcublas -lcufft_static -lculibos)
-#XXX workaround for bad CMake support for device link libraries, see https://gitlab.kitware.com/cmake/cmake/issues/18599 https://gitlab.kitware.com/cmake/cmake/issues/18614
-set(CMAKE_CUDA_DEVICE_LINK_EXECUTABLE "${CMAKE_CUDA_DEVICE_LINK_EXECUTABLE} -lcufft_static")
 
-#boost and MPI tend to pull in much useless stuff in on different platforms
-add_definitions(-DOMPI_SKIP_MPICXX)
-if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
-    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Xlinker --as-needed")
-endif()
+set_property(TARGET nlchains PROPERTY CUDA_SEPARABLE_COMPILATION ON)
+#XXX workaround for bad CMake support for device link libraries, see https://gitlab.kitware.com/cmake/cmake/issues/18599 https://gitlab.kitware.com/cmake/cmake/issues/18614
+set(CMAKE_CUDA_DEVICE_LINK_EXECUTABLE "<CMAKE_CUDA_COMPILER> <FLAGS> -Xcompiler=-fPIC -Wno-deprecated-gpu-targets -shared -dlink <OBJECTS> -o <TARGET> -lcufft_static")
+
+target_link_libraries(nlchains
+        ${Boost_LIBRARIES}
+        ${MPI_CXX_LINK_FLAGS} ${MPI_CXX_LIBRARIES}
+        ${ARMADILLO_LIBRARIES}
+        ${CUBLAS_LIB}
+        -lcufft_static -lculibos)

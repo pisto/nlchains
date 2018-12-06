@@ -2,7 +2,7 @@ FROM fedora:27
 
 RUN dnf update -y && dnf clean all
 RUN dnf install -y http://developer.download.nvidia.com/compute/cuda/repos/fedora27/x86_64/cuda-repo-fedora27-9.2.148-1.x86_64.rpm \
- && dnf install -y cuda-core-9-2 cuda-cudart-dev-9-2 cuda-cufft-dev-9-2 cuda-cublas-dev-9-2 armadillo-devel boost-devel boost-openmpi-devel cmake make openmpi-devel \
+ && dnf install -y cuda-core-9-2 cuda-cudart-dev-9-2 cuda-cufft-dev-9-2 cuda-cublas-dev-9-2 armadillo-devel boost-devel boost-openmpi-devel cmake make openmpi-devel boost-static openblas-static lapack-static libstdc++-static \
  && dnf clean all
 
 ENV PATH="/usr/lib64/openmpi/bin/:/usr/local/cuda-9.2/bin/:${PATH}"
