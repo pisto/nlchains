@@ -53,7 +53,6 @@ namespace kg_disorder {
 		}
 		__syncthreads();
 
-
 		for (uint32_t i = 0; i < steps_grouping; i++) {
 			//XXX this unroll may need to be tweaked
 			#pragma unroll (elements_in_thread > 4 ? 1 : 7)
@@ -87,6 +86,7 @@ namespace kg_disorder {
 
 	/*
 	 * Move entire chain in a thread. Compare with kg_fpu_toda.cu .
+	 * Since this is used for chain_length < 32, it is safe to use the constant memory version of mp2.
 	 */
 	template<uint16_t chain_length>
 	__global__ void move_chain_in_thread(double2 *planar, uint32_t steps_grouping, uint16_t copies) {
@@ -203,18 +203,18 @@ namespace kg_disorder {
 			                                                 (splitter.real_transposed, splitter.img_transposed,
 					                                                 gconf.chain_length <= sizeof(mp2) / sizeof(double)
 					                                                 ? mp2_const_ptr : mp2_gmem,
-					                                                 gconf.chain_length, gconf.shard_copies, gconf.steps_grouping);
+					                                                 gconf.chain_length, gconf.shard_copies, gconf.kernel_batching);
 		} else {
 			if (gconf.chain_length < 32) {
 				auto &kinfo = thread_kernel_resolver<>::get(gconf.chain_length);
 				auto linear_config = kinfo.linear_configuration(gconf.shard_copies, gconf.verbose);
 				kinfo.k <<< linear_config.x, linear_config.y, 0, stream >>>
-				                                                 (gres.shard, gconf.steps_grouping, gconf.shard_copies);
+				                                                 (gres.shard, gconf.kernel_batching, gconf.shard_copies);
 			} else if (gconf.chain_length == optimized_chain_length) {
 				static auto kinfo = make_kernel_info(move_chain_in_warp);
 				auto linear_config = kinfo.linear_configuration(uint32_t(gconf.shard_copies) * 32, gconf.verbose);
 				kinfo.k <<< linear_config.x, linear_config.y, 0, stream >>>
-				                                                 (gres.shard, mp2_gmem, gconf.steps_grouping, gconf.shard_copies);
+				                                                 (gres.shard, mp2_gmem, gconf.kernel_batching, gconf.shard_copies);
 			} else {
 				static bool warned = false;
 				if (!warned && gconf.chain_length < 2048) {

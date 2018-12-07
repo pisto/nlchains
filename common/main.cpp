@@ -63,12 +63,11 @@ parse_cmdline::parse_cmdline(const string &name) : options(name) {
 			("entropy,e", value(&gconf.entropy_limit)->default_value(0), "entropy limit")
 			("WTlimit", "limit WT entropy")
 			("entropymask", value(&entropymask_filename), "mask of linenergies to include in entropy calculation")
-			("base,b", value(&gconf.timebase)->default_value(0), "time offset")
+			("time_offset,o", value(&gconf.time_offset)->default_value(0), "time offset")
 			("dt", value(&gconf.dt)->required(), "time delta")
-			("grouping,k", value(&gconf.steps_grouping)->required(),
-			 "number of steps per kernel invocation, affects granularity of linear energy and entropy dumps")
-			("dumpsteps", value(&gconf.steps_grouping_dump),
-			 "number of steps between full state dumps (defaults to same value as --grouping)");
+			("kernel_batching,b", value(&gconf.kernel_batching)->required(), "number of steps per kernel invocation")
+			("dump_interval", value(&gconf.dump_interval),
+			 "number of steps between full state dumps (defaults to same value as --batch)");
 }
 
 void parse_cmdline::operator()(int argc, char *argv[]) try {
@@ -85,23 +84,23 @@ void parse_cmdline::operator()(int argc, char *argv[]) try {
 	if (gconf.copies_total % mpi_global.size())
 		throw invalid_argument("copies must be a multiple of the number of devices");
 	gconf.shard_copies = gconf.copies_total / mpi_global.size();
-	if (gconf.chain_length < 2 || !gconf.shard_copies || gconf.dt <= 0 || !gconf.steps_grouping)
-		throw invalid_argument("chain_length must be >= 2, copies, dt and grouping must be positive numbers");
+	if (gconf.chain_length < 2 || !gconf.shard_copies || gconf.dt <= 0 || !gconf.kernel_batching)
+		throw invalid_argument("--chain_length must be >= 2, copies, --dt and --kernel_batching must be positive numbers");
 	if (gconf.entropy_limit < 0)
-		throw invalid_argument("entropy limit must be >= 0");
+		throw invalid_argument("--entropy must be >= 0");
 	if (vm.count("entropy"))
 		gconf.entropy_limit_type = vm.count("WTlimit") ? configuration::WT : configuration::INFORMATION;
-	if (!vm.count("dumpsteps")) gconf.steps_grouping_dump = gconf.steps_grouping;
-	if (gconf.steps_grouping_dump % gconf.steps_grouping)
-		throw invalid_argument("--dumpsteps must be a multiple of --grouping");
-	if (gconf.steps % gconf.steps_grouping_dump || gconf.timebase % gconf.steps_grouping_dump)
-		throw invalid_argument("steps and timebase must be a multiple of --dumpsteps");
-	if (gconf.timebase && gconf.steps && gconf.timebase >= gconf.steps)
-		throw invalid_argument("timebase must be less than steps");
+	if (!vm.count("dumpsteps")) gconf.dump_interval = gconf.kernel_batching;
+	if (gconf.dump_interval % gconf.kernel_batching)
+		throw invalid_argument("--dump_interval must be a multiple of --batch");
+	if (gconf.steps % gconf.dump_interval || gconf.time_offset % gconf.dump_interval)
+		throw invalid_argument("--time_offset must be a multiple of --dump_interval");
+	if (gconf.time_offset && gconf.steps && gconf.time_offset >= gconf.steps)
+		throw invalid_argument("--time_offset must be less than --steps");
 
 	gconf.sizeof_linenergies = sizeof(double) * gconf.chain_length;
 	if (uint64_t(gconf.chain_length) * gconf.shard_copies >= 0x40000000ULL)
-		throw invalid_argument("(chain_length * copies) / total_GPUs must be <= 2^30");
+		throw invalid_argument("(--chain_length * --copies) / total_GPUs must be <= 2^30");
 	gconf.shard_elements = uint32_t(gconf.chain_length) * gconf.shard_copies;
 	gconf.sizeof_shard = sizeof(double2) * gconf.shard_elements;
 	gres.shard = cudalist<double2>(gconf.shard_elements);

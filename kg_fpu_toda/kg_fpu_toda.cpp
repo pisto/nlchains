@@ -8,12 +8,17 @@
 
 using namespace std;
 
+/*
+ * Yoshida symplectic integration for the nonlinear Klein Gordon, alpha/beta FPUT and Toda chains.
+ * For a description of the implementation strategies on GPU see kg_fpu_toda.cu .
+ */
+
 namespace kg_fpu_toda {
 
 	template<Model model>
 	int main(int argc, char *argv[]) {
 
-		bool use_split_kernel = false;
+		bool split_kernel = false;
 		double m = 0., alpha = 0., beta;
 		{
 			using namespace boost::program_options;
@@ -22,9 +27,9 @@ namespace kg_fpu_toda {
 			else parser.options.add_options()("alpha", value(&alpha)->required(), "third order nonlinearity");
 			parser.options.add_options()
 					("beta", value(&beta)->required(), "fourth order nonlinearity")
-					("split-kernel", "force use of split kernel");
+					("split_kernel", "force use of split kernel");
 			parser(argc, argv);
-			use_split_kernel = parser.vm.count("split-kernel");
+			split_kernel = parser.vm.count("split_kernel");
 		}
 
 		cudalist<double> omega(gconf.chain_length);
@@ -52,7 +57,8 @@ namespace kg_fpu_toda {
 		/*
 		 * FFT for the linear energies is performed on the data that is first converted to complex format
 		 * (real = phi, imaginary = pi), and transposed into an array with indices { real/img, copy, chain_index }.
-		 * This allows to simply double the batch size of the FFT (gconf.shard_copies * 2) to transform both phi and pi.
+		 * This allows to simply double the batch size of the FFT (gconf.shard_copies * 2) to transform both phi and pi,
+		 * and it also allows to run the next symplectic steps right after the copy to the auxiliary fft buffer.
 		 */
 		cudalist<double2> fft_phi(gconf.shard_elements * 2);
 		auto fft_pi = &fft_phi[gconf.shard_elements];
@@ -72,8 +78,12 @@ namespace kg_fpu_toda {
 		set_device_object(alpha2_inv, kg_fpu_toda::alpha2_inv);
 		set_device_object(beta, kg_fpu_toda::beta);
 
+		/*
+		 * The code in kg_fpu_toda.cu might not find an optimized kernel that uses the planar format. If that is the
+		 * or if the user specifies --split_kernel, then we use the split format (see utilities_cuda.cuh).
+		 */
 		plane2split *splitter = 0;
-		if (use_split_kernel) {
+		if (split_kernel) {
 			splitter = new plane2split(gconf.chain_length, gconf.shard_copies);
 			splitter->split(gres.shard, streams[s_move]);
 		}
@@ -93,7 +103,7 @@ namespace kg_fpu_toda {
 		destructor(cudaDeviceSynchronize);
 		while (1) {
 			if (splitter) splitter->plane(gres.shard, streams[s_move], streams[s_dump]).blocks(streams[s_entropy]);
-			if (loop_ctl % gconf.steps_grouping_dump == 0) dumper();
+			if (loop_ctl % gconf.dump_interval == 0) dumper();
 			//entropy stream is already synced to move or dump stream, that is the readiness of the planar representation
 			completion(streams[s_entropy]).blocks(streams[s_entropy_aux]);
 			//interleave phi and pi with zeroes, since we do a complex FFT
@@ -113,7 +123,7 @@ namespace kg_fpu_toda {
 				status && assertcu;
 				auto entropies = res.entropies(gres.linenergies_host, (0.5 / gconf.shard_copies) / gconf.chain_length);
 				res.check_entropy(entropies);
-				if (t % gconf.steps_grouping_dump == 0) res.write_linenergies(t);
+				if (t % gconf.dump_interval == 0) res.write_linenergies(t);
 				res.write_entropy(t, entropies);
 			});
 			completion(streams[s_entropy_aux]).blocks(streams[s_entropy]);
@@ -124,10 +134,10 @@ namespace kg_fpu_toda {
 			finish_move.blocks(streams[s_entropy]);
 			finish_move.blocks(streams[s_dump]);
 
-			loop_ctl += gconf.steps_grouping;
+			loop_ctl += gconf.kernel_batching;
 		}
 
-		if (loop_ctl % gconf.steps_grouping_dump != 0) {
+		if (loop_ctl % gconf.dump_interval != 0) {
 			dumper();
 			completion(streams[s_entropy]).wait();
 			res.write_linenergies(loop_ctl);

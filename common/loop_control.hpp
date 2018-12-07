@@ -8,8 +8,8 @@
 #include "utilities_cuda.cuh"
 
 /*
- * Main loop control: coordinate between the MPI processes to quit at the same time step,
- * throttle enqueuing of kernels, check termination conditions.
+ * Main loop control: coordinate between the MPI processes to quit at the same time step, throttle enqueuing of kernels,
+ * check termination conditions.
  * This struct can be converted to uint64_t to get the current time step.
  */
 
@@ -37,7 +37,7 @@ struct loop_control {
 	}
 
 private:
-	uint64_t t = gconf.timebase;
+	uint64_t t = gconf.time_offset;
 	std::list<completion> completions;
 	const cudaStream_t throttle_stream;
 	const uint32_t throttle_period;

@@ -11,6 +11,17 @@
 
 using namespace std;
 
+/*
+ * The Yoshida 6th order symplectic algorithm, implemented as per arXiv:1012.3242 . It is suggested in the paper
+ * that the linear operator evolution can be performed as a FFT, and here we implement it so.
+ *
+ * Contrary to kg_fpu_toda or kg_disorder, each symplectic step is broken into a number of FFTs, hence different kernel
+ * invocations. This makes the algorithm much slower than the others implemented. This is mitigated by the use of
+ * cuFFT callbacks, in order to coalesce the linear/nonlinear evolutions in the load callback of the FFTs. In my
+ * experience cuFFT callbacks can be of great benefit, but also in some cases (depending on architecture, clocks,
+ * number of GPUs used, etc.) they can degrade performance. By default, they are used for both linear and nonlinear
+ * evolutions, but the user can disable one or both with the switches --no_linear_callback and --no_nonlinear_callback.
+ */
 namespace dnls {
 
 	int main(int argc, char *argv[]) {
@@ -21,12 +32,12 @@ namespace dnls {
 			using namespace boost::program_options;
 			parse_cmdline parser("Options for "s + argv[0]);
 			parser.options.add_options()
-					("no-linear-callback", "do not use cuFFT callback for linear evolution")
-					("no-nonlinear-callback", "do not use cuFFT callback for nonlinear evolution")
+					("no_linear_callback", "do not use cuFFT callback for linear evolution")
+					("no_nonlinear_callback", "do not use cuFFT callback for nonlinear evolution")
 					("beta", value(&beta)->required(), "fourth order nonlinearity");
 			parser(argc, argv);
-			no_linear_callback = parser.vm.count("no-linear-callback");
-			no_nonlinear_callback = parser.vm.count("no-nonlinear-callback");
+			no_linear_callback = parser.vm.count("no_linear_callback");
+			no_nonlinear_callback = parser.vm.count("no_nonlinear_callback");
 		}
 
 		vector<double> omega_host(gconf.chain_length);
@@ -40,11 +51,6 @@ namespace dnls {
 		cudalist<cufftDoubleComplex> psis_k(gconf.shard_elements);
 		results res(true);
 
-		/*
-		 * Integrating the DNLS amounts to running a lot of FFTs, because the Yoshida symplectic integrator
-		 * essentially turns into a split-step algorithm, where the operators are the linear and nonlinear
-		 * parts of the equation of motion. See http://arxiv.org/abs/1012.3242v1 .
-		 */
 		enum {
 			s_move = 0, s_cb_linear, s_cb_nonlinear, s_dump, s_entropy, s_total
 		};
@@ -70,11 +76,10 @@ namespace dnls {
 		}
 
 		/*
-		 * Three fft plans are required because of the nonlinear/linear evolution callbacks.
-		 * The plain fft plan is used to make the linear energies, and in case that the user disabled
-		 * callbacks.
-		 * The settings for the callbacks (the symplectic time step, or the linear evolution table)
-		 * is set on global variables asynchronously with additional streams.
+		 * Three FFT plans are required because of the nonlinear/linear evolution callbacks. The plain fft plan is used
+		 * to make the linear energies, and in case that the user disabled callbacks.
+		 * The settings for the callbacks (the symplectic time step, or the linear evolution table) are put on global
+		 * variables asynchronously with additional streams.
 		 */
 		cufftHandle fft_plain = 0, fft_elvolve_psik = 0, fft_elvolve_psi = 0;
 		destructor([&] {
@@ -122,8 +127,8 @@ namespace dnls {
 			}
 			area = maxsize;
 			cufftSetWorkArea(fft_plain, area) && assertcufft;
-			if (!no_linear_callback) cufftSetWorkArea(fft_elvolve_psik, area) && assertcufft;;
-			if (!no_nonlinear_callback) cufftSetWorkArea(fft_elvolve_psi, area) && assertcufft;;
+			if (!no_linear_callback) cufftSetWorkArea(fft_elvolve_psik, area) && assertcufft;
+			if (!no_nonlinear_callback) cufftSetWorkArea(fft_elvolve_psi, area) && assertcufft;
 		}
 
 		loop_control loop_ctl(streams[s_move]);
@@ -139,7 +144,7 @@ namespace dnls {
 		};
 		destructor(cudaDeviceSynchronize);
 		while (1) {
-			if (loop_ctl % gconf.steps_grouping_dump == 0) dumper();
+			if (loop_ctl % gconf.dump_interval == 0) dumper();
 			cufftExecZ2Z(fft_plain, gres.shard, psis_k, CUFFT_FORWARD) && assertcufft;
 			completion(streams[s_move]).blocks(streams[s_entropy]);
 			make_linenergies(psis_k, omega, streams[s_entropy]);
@@ -148,13 +153,13 @@ namespace dnls {
 				status && assertcu;
 				auto entropies = res.entropies(gres.linenergies_host, 1. / gconf.shard_elements);
 				res.check_entropy(entropies);
-				if (t % gconf.steps_grouping_dump == 0) res.write_linenergies(t);
+				if (t % gconf.dump_interval == 0) res.write_linenergies(t);
 				res.write_entropy(t, entropies);
 			});
 
 			if (loop_ctl.break_now()) break;
 
-			for (uint32_t i = 0; i < gconf.steps_grouping; i++)
+			for (uint32_t i = 0; i < gconf.kernel_batching; i++)
 				for (int k = 0; k < 7; k++) {
 					if (fft_elvolve_psi) {
 						cudaMemcpyAsync(beta_dt_symplectic_ptr, &beta_dt_symplectic_all[!k && i ? 7 : k],
@@ -174,10 +179,10 @@ namespace dnls {
 			finish_move.blocks(streams[s_entropy]);
 			finish_move.blocks(streams[s_dump]);
 
-			loop_ctl += gconf.steps_grouping;
+			loop_ctl += gconf.kernel_batching;
 		}
 
-		if (loop_ctl % gconf.steps_grouping_dump != 0) {
+		if (loop_ctl % gconf.dump_interval != 0) {
 			dumper();
 			completion(streams[s_entropy]).wait();
 			res.write_linenergies(loop_ctl);

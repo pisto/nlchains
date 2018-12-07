@@ -10,11 +10,19 @@
 
 using namespace std;
 
+/*
+ * Nonlinear Klein-Gordon with a mass parameter specific to every site.
+ *
+ * The linear eigensystem is solved, and the linear energies are calculated through an explicit projection on the
+ * eigenstates: such operation is implemented as a matrix multiplication. This is pretty much the only difference
+ * between this solver and kg_fpu_toda.
+ */
+
 namespace kg_disorder {
 
 	int main(int argc, char *argv[]) {
 
-		bool use_split_kernel = false;
+		bool split_kernel = false;
 		arma::vec mp2_host;
 		double beta;
 		{
@@ -24,9 +32,9 @@ namespace kg_disorder {
 			parser.options.add_options()
 					(",m", value(&m_fname)->required(), "linear parameter m filename")
 					("beta", value(&beta)->required(), "fourth order nonlinearity")
-					("split-kernel", "force use of split kernel");
+					("split_kernel", "force use of split kernel");
 			parser(argc, argv);
-			use_split_kernel = parser.vm.count("split-kernel");
+			split_kernel = parser.vm.count("split_kernel");
 
 			mp2_host.resize(gconf.chain_length);
 			try {
@@ -108,10 +116,10 @@ namespace kg_disorder {
 
 		loop_control loop_ctl(streams[s_move]);
 		auto dumper = [&] {
-			if (use_split_kernel) splitter.plane(gres.shard, streams[s_move], streams[s_dump]);
+			if (split_kernel) splitter.plane(gres.shard, streams[s_move], streams[s_dump]);
 			cudaMemcpyAsync(gres.shard_host, gres.shard, gconf.sizeof_shard, cudaMemcpyDeviceToHost, streams[s_dump]) &&
 			assertcu;
-			if (!use_split_kernel) completion(streams[s_dump]).blocks(streams[s_move]);
+			if (!split_kernel) completion(streams[s_dump]).blocks(streams[s_move]);
 			add_cuda_callback(streams[s_dump], loop_ctl.callback_err, [&, t = *loop_ctl](cudaError_t status) {
 				if (loop_ctl.callback_err) return;
 				status && assertcu;
@@ -120,8 +128,8 @@ namespace kg_disorder {
 		};
 		destructor(cudaDeviceSynchronize);
 		while (1) {
-			if (loop_ctl % gconf.steps_grouping_dump == 0) dumper();
-			if (!use_split_kernel) splitter.split(gres.shard, streams[s_move], streams[s_entropy]);
+			if (loop_ctl % gconf.dump_interval == 0) dumper();
+			if (!split_kernel) splitter.split(gres.shard, streams[s_move], streams[s_entropy]);
 			completion(streams[s_entropy]).blocks(streams[s_entropy_aux]);
 			double one = 1, zero = 0;
 			cublasSetStream(cublas, streams[s_entropy]) && assertcublas;
@@ -137,27 +145,27 @@ namespace kg_disorder {
 			            eigenvectors, gconf.chain_length,
 			            &zero, projection_pi, gconf.shard_copies) && assertcublas;
 			completion(streams[s_entropy_aux]).blocks(streams[s_entropy]);
-			if (use_split_kernel) completion(streams[s_entropy]).blocks(streams[s_move]);
+			if (split_kernel) completion(streams[s_entropy]).blocks(streams[s_move]);
 			make_linenergies(projection_phi, projection_pi, streams[s_entropy]);
 			add_cuda_callback(streams[s_entropy], loop_ctl.callback_err, [&, t = *loop_ctl](cudaError_t status) {
 				if (loop_ctl.callback_err) return;
 				status && assertcu;
 				auto entropies = res.entropies(gres.linenergies_host, 0.5 / gconf.shard_copies);
 				res.check_entropy(entropies);
-				if (t % gconf.steps_grouping_dump == 0) res.write_linenergies(t);
+				if (t % gconf.dump_interval == 0) res.write_linenergies(t);
 				res.write_entropy(t, entropies);
 			});
 
 			if (loop_ctl.break_now()) break;
 
-			completion finish_move = move(splitter, use_split_kernel, mp2, streams[s_move]);
+			completion finish_move = move(splitter, split_kernel, mp2, streams[s_move]);
 			finish_move.blocks(streams[s_entropy]);
 			finish_move.blocks(streams[s_dump]);
 
-			loop_ctl += gconf.steps_grouping;
+			loop_ctl += gconf.kernel_batching;
 		}
 
-		if (loop_ctl % gconf.steps_grouping_dump != 0) {
+		if (loop_ctl % gconf.dump_interval != 0) {
 			dumper();
 			completion(streams[s_entropy]).wait();
 			res.write_linenergies(loop_ctl);

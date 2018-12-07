@@ -15,11 +15,11 @@ extern struct configuration {
 
 	uint16_t chain_length, shard_copies;
 	uint32_t copies_total, shard_elements;
-	uint32_t steps_grouping, steps_grouping_dump;
+	uint32_t kernel_batching, dump_interval;
 	double dt;
 
 	std::string dump_prefix;
-	uint64_t steps = 0, timebase = 0;
+	uint64_t steps = 0, time_offset = 0;
 	double entropy_limit;
 	enum {
 		NONE = 0, INFORMATION, WT

@@ -64,7 +64,7 @@ namespace kg_fpu_toda {
 	/*
 	 * Optimized version of time march, no memory transfers as all the chain state is loaded in registers and memory is
 	 * read/written once. Each warp owns a copy, each thread contains ceil(chain_length / 32) elements of the chain.
-	 * This kernel must be recompiled for each target chain_length, because that is to be a compile time constant,
+	 * This kernel must be recompiled for each target --chain_length, because that is to be a compile time constant,
 	 * because phi[] and pi[] must be indexed statically, otherwise accesses to local memory are generated.
 	 */
 	template<Model model>
@@ -202,10 +202,8 @@ namespace kg_fpu_toda {
 	 * Generic version of move with split format. Each thread owns a copy, and loops through the
 	 * chain elements to update them. In order to avoid more than one read/write memory accesses for each chain element,
 	 * the loop iteration consists in updating a phi[i] value and the pi[i - 1] value using the saved phi[i - 2],
-	 * phi[i - 1] and phi[i] values. This comes at the cost of more complicated bookkeeping of previous phi/pi values,
-	 * and code that comes right before and after the loop.
-	 * Note that since copies are distributed among threads, using a number of copies multiple of 32 is advised. The
-	 * block size is actually determined and printed once at runtime, and setting the number of copies
+	 * phi[i - 1] and phi[i] values. This comes at the cost of more complicated bookkeeping of previous phi/pi values.
+	 * Note that since copies are distributed among threads, using a number of copies multiple of 32 is advised.
 	 */
 	template<Model model>
 	__global__ void
@@ -258,27 +256,26 @@ namespace kg_fpu_toda {
 			                                          std::string("move_split<") + std::to_string(int(model)) + ">");
 			auto linear_config = kinfo.linear_configuration(gconf.shard_copies, gconf.verbose);
 			kinfo.k <<< linear_config.x, linear_config.y, 0, stream >>>
-			                                                 (splitter->real_transposed, splitter->img_transposed, gconf.chain_length, gconf.shard_copies, gconf.steps_grouping);
+			                                                 (splitter->real_transposed, splitter->img_transposed, gconf.chain_length, gconf.shard_copies, gconf.kernel_batching);
 		} else {
 			if (gconf.chain_length < 32) {
 				auto &kinfo = thread_kernel_resolver<model>::get(gconf.chain_length);
 				auto linear_config = kinfo.linear_configuration(gconf.shard_copies, gconf.verbose);
 				kinfo.k <<< linear_config.x, linear_config.y, 0, stream >>>
-				                                                 (gres.shard, gconf.steps_grouping, gconf.shard_copies);
+				                                                 (gres.shard, gconf.kernel_batching, gconf.shard_copies);
 			} else if (gconf.chain_length == optimized_chain_length) {
 				static auto kinfo = make_kernel_info_name(move_chain_in_warp<model>,
 				                                          std::string("move_chain_in_warp<") +
 				                                          std::to_string(int(model)) + ">");
 				auto linear_config = kinfo.linear_configuration(uint32_t(gconf.shard_copies) * 32, gconf.verbose);
 				kinfo.k <<< linear_config.x, linear_config.y, 0, stream >>>
-				                                                 (gres.shard, gconf.steps_grouping, gconf.shard_copies);
+				                                                 (gres.shard, gconf.kernel_batching, gconf.shard_copies);
 			} else {
 				static bool warned = false;
 				if (!warned && gconf.chain_length < 2048) {
 					std::ostringstream msg("Could not find optimized version for chain_length ", std::ios::app);
 					msg << gconf.chain_length << ", try to reconfigure with -Doptimized_chain_length="
-					    << gconf.chain_length
-					    << " and recompile." << std::endl;
+					    << gconf.chain_length << " and recompile." << std::endl;
 					std::cerr << msg.str();
 					warned = true;
 				}
@@ -292,9 +289,7 @@ namespace kg_fpu_toda {
 	}
 
 	template completion move<KG>(plane2split *&splitter, cudaStream_t stream);
-
 	template completion move<FPU>(plane2split *&splitter, cudaStream_t stream);
-
 	template completion move<Toda>(plane2split *&splitter, cudaStream_t stream);
 
 
