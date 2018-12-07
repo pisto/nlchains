@@ -55,19 +55,19 @@ parse_cmdline::parse_cmdline(const string &name) : options(name) {
 	using namespace boost::program_options;
 	options.add_options()
 			("verbose,v", "print extra informations")
-			("prefix,p", value(&gconf.dump_prefix)->required(), "prefix for dump files")
 			("initial,i", value(&initial_filename)->required(), "initial state file")
 			("chain_length,n", value(&gconf.chain_length)->required(), "length of the chain")
-			("copies,c", value(&gconf.copies_total)->required(), "number of ensemble realizations")
-			("steps,s", value(&gconf.steps)->default_value(0), "number of steps in total (0 for infinite)")
-			("entropy,e", value(&gconf.entropy_limit)->default_value(0), "entropy limit")
-			("WTlimit", "limit WT entropy")
-			("entropymask", value(&entropymask_filename), "mask of linenergies to include in entropy calculation")
-			("time_offset,o", value(&gconf.time_offset)->default_value(0), "time offset")
-			("dt", value(&gconf.dt)->required(), "time delta")
+			("copies,c", value(&gconf.copies_total)->required(), "number of realizations of the chain in the ensemble")
+			("dt", value(&gconf.dt)->required(), "time step value")
 			("kernel_batching,b", value(&gconf.kernel_batching)->required(), "number of steps per kernel invocation")
+			("steps,s", value(&gconf.steps)->default_value(0), "number of steps in total (0 for infinite)")
+			("time_offset,o", value(&gconf.time_offset)->default_value(0), "time offset in dump files")
+			("entropy,e", value(&gconf.entropy_limit)->default_value(0), "entropy limit")
+			("WTlimit", "limit WT entropy instead of information entropy")
+			("entropymask", value(&entropymask_filename), "mask of linenergies to include in entropy calculation")
+			("prefix,p", value(&gconf.dump_prefix)->required(), "prefix for dump files")
 			("dump_interval", value(&gconf.dump_interval),
-			 "number of steps between full state dumps (defaults to same value as --batch)");
+			 "number of steps between full state dumps (defaults to same value as --batch, does not affect other dump or entropy time granularity)");
 }
 
 void parse_cmdline::operator()(int argc, char *argv[]) try {
