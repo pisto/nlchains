@@ -23,13 +23,24 @@ namespace kg_fpu_toda {
 		{
 			using namespace boost::program_options;
 			parse_cmdline parser("Options for "s + argv[0]);
-			if (model == KG) parser.options.add_options()(",m", value(&m)->required(), "linear parameter m");
-			else parser.options.add_options()("alpha", value(&alpha)->required(), "third order nonlinearity");
-			if (model != Toda) parser.options.add_options()("beta", value(&beta)->required(),
-					"fourth order nonlinearity");
-			parser.options.add_options()
-					("beta", value(&beta)->required(), "fourth order nonlinearity")
-					("split_kernel", "force use of split kernel");
+			switch (model) {
+				case KG:
+					parser.options.add_options()
+							(",m", value(&m)->required(), "linear parameter m")
+							("beta", value(&beta)->required(), "fourth order nonlinearity");
+					break;
+				case FPU:
+					parser.options.add_options()
+							("alpha", value(&alpha)->required(), "third order nonlinearity")
+							("beta", value(&beta)->required(), "fourth order nonlinearity");
+					break;
+				case Toda:
+					parser.options.add_options()
+							("alpha", value(&alpha)->required(),
+									"steepness of exponential, V(dx)=e^(2*alpha*dx)/(4*alpha^2)-dx/(2*alpha)");
+					break;
+			}
+			parser.options.add_options()("split_kernel", "force use of split kernel");
 			parser(argc, argv);
 			split_kernel = parser.vm.count("split_kernel");
 		}
