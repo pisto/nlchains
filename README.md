@@ -28,6 +28,8 @@ Other relevant CMake flags (`-DFlag=Value`) are listed in the table below.
 | `CMAKE_CUDA_FLAGS`    | Flags for the GPU code generation, e.g. -arch=sm_35                             |
 | `portable`            | If `TRUE`, prefer linking static libraries to make the executable more portable |
 
+Two Dockerfiles are provided in the repo: they can be used to build `nlchains` in a Fedora virtual environment with minimal effort.
+
 # Launching a simulation
 
 `nlchains` can be launched stand-alone to use one GPU on the current host, or through your MPI implementation to use multiple GPUs across multiple nodes. When multiple GPUs are present, `nlchains` splits equally the number of copies of the ensemble among the available GPUs. There is no way to divide the work in unequal shards: all GPUs should have essentially the same computational speed (check the clocks with `nvidia-smi`!), otherwise the faster GPUs will run at the pace of the slower ones.
