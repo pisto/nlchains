@@ -3,9 +3,9 @@
 #include <cub/util_ptx.cuh>
 #include "../common/utilities_cuda.cuh"
 #include "../common/configuration.hpp"
-#include "kg_fpu_toda.hpp"
+#include "kg_fput_toda.hpp"
 
-namespace kg_fpu_toda {
+namespace kg_fput_toda {
 
 	__constant__ double dt_c[8], dt_d[8], m, alpha, beta;
 
@@ -27,7 +27,7 @@ namespace kg_fpu_toda {
 	};
 
 	template<>
-	struct RHS<FPU> {
+	struct RHS<FPUT> {
 		double cached_dleft3_beta;
 		__device__ RHS(double left, double center) {
 			auto dleft = center - left;
@@ -178,7 +178,7 @@ namespace kg_fpu_toda {
 	}
 	//some machinery to get the compiler to create all the versions of move_planar, and to get the right one at runtime
 	namespace {
-		using thread_kernel_info = kernel_info<decltype(&move_chain_in_thread<FPU, 0>)>;
+		using thread_kernel_info = kernel_info<decltype(&move_chain_in_thread<FPUT, 0>)>;
 
 		template<Model model, int chain_length = 2>
 		struct thread_kernel_resolver {
@@ -289,7 +289,7 @@ namespace kg_fpu_toda {
 	}
 
 	template completion move<KG>(plane2split *&splitter, cudaStream_t stream);
-	template completion move<FPU>(plane2split *&splitter, cudaStream_t stream);
+	template completion move<FPUT>(plane2split *&splitter, cudaStream_t stream);
 	template completion move<Toda>(plane2split *&splitter, cudaStream_t stream);
 
 

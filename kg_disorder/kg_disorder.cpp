@@ -15,7 +15,7 @@ using namespace std;
  *
  * The linear eigensystem is solved, and the linear energies are calculated through an explicit projection on the
  * eigenstates: such operation is implemented as a matrix multiplication. This is pretty much the only difference
- * between this solver and kg_fpu_toda.
+ * between this solver and kg_fput_toda.
  */
 
 namespace kg_disorder {

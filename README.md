@@ -46,7 +46,7 @@ All `nlchains` dumps are in binary format (64bit double, or 128bit complex doubl
 | `<prefix>-eigenvectors`           | (KleinGordon-disorder only): eigenvectors                                                                                                           |
 | `<prefix>-omegas`                 | (KleinGordon-disorder only): square root of the eigenvalues (pulsation of the eigenvectors)                                                         |
 
-The program is divided into subprograms. The first argument must always be the name of the subprogram, that is one of `FPU`, `KleinGordon`, `KleinGordon-disorder`, `Toda`, `dnls`. The common options are the following:
+The program is divided into subprograms. The first argument must always be the name of the subprogram, that is one of `FPUT`, `KleinGordon`, `KleinGordon-disorder`, `Toda`, `dnls`. The common options are the following:
 ```
   -v [ --verbose ]              print extra informations
   -i [ --initial ] arg          initial state file
@@ -71,9 +71,9 @@ The initial state file has the same format of the full dump. The argument to `--
 Each model has a few extra argument:
 ```
   -m arg                        linear parameter m (KleinGordon), linear parameters m filename (KleinGordon-disorder)
-  --alpha arg                   third order nonlinearity (FPU), exponential steepness (Toda)
-  --beta arg                    fourth order nonlinearity (KleinGordon, FPU, KleinGordon-disorder, dnls)
-  --split_kernel                force use of split kernel (KleinGordon, FPU, Toda, KleinGordon-disorder)
+  --alpha arg                   third order nonlinearity (FPUT), exponential steepness (Toda)
+  --beta arg                    fourth order nonlinearity (KleinGordon, FPUT, KleinGordon-disorder, dnls)
+  --split_kernel                force use of split kernel (KleinGordon, FPUT, Toda, KleinGordon-disorder)
   --no_linear_callback          do not use cuFFT callback for linear evolution (dnls)
   --no_nonlinear_callback       do not use cuFFT callback for nonlinear evolution (dnls)
 ```
@@ -81,12 +81,12 @@ For an explanation of the `--split_kernel`, `--no_linear_callback` and `--no_non
 
 A typical invocation of `nlchains` to run on two GPUs looks like this:
 ```
-mpirun -n 2 nlchains FPU -v -p alpha-N128-alpha1 -i alpha-N128 -n 128 -c 4096 --WTlimit -e 0.05 --dt 0.1 -k 10000 --dumpsteps 1000000 --alpha 1 --beta 0
+mpirun -n 2 nlchains FPUT -v -p alpha-N128-alpha1 -i alpha-N128 -n 128 -c 4096 --WTlimit -e 0.05 --dt 0.1 -k 10000 --dumpsteps 1000000 --alpha 1 --beta 0
 ```
 
 ## Performance considerations
 
-The compile flag `-Doptimized_chain_length=XX` and the command line option `--split_kernel` are relevant for the KleinGordon, FPU, Toda, KleinGordon-disorder models. There are internally three GPU implementations of each of these models: one specialized for `--chain_length` less than 32, one optimized for the value passed to `optimized_chain_length`, and one generic. The generic version is referred to as the "split kernel" version. The split kernel is the slowest one because every nonlinear chain element update causes a read from memory, but it is flexible, and works with very large values of `--chain_length`. The other two are much more optimized since they keep the whole chain state in registers rather than memory. It is advised to recompile `nlchains` with a different value of `optimized_chain_length` for each target `--chain_length` that you plan to use. If `nlchains` cannot find the optimized version, it will fallback to the split kernel version, generating a warning.
+The compile flag `-Doptimized_chain_length=XX` and the command line option `--split_kernel` are relevant for the KleinGordon, FPUT, Toda, KleinGordon-disorder models. There are internally three GPU implementations of each of these models: one specialized for `--chain_length` less than 32, one optimized for the value passed to `optimized_chain_length`, and one generic. The generic version is referred to as the "split kernel" version. The split kernel is the slowest one because every nonlinear chain element update causes a read from memory, but it is flexible, and works with very large values of `--chain_length`. The other two are much more optimized since they keep the whole chain state in registers rather than memory. It is advised to recompile `nlchains` with a different value of `optimized_chain_length` for each target `--chain_length` that you plan to use. If `nlchains` cannot find the optimized version, it will fallback to the split kernel version, generating a warning.
 
 The command line options `--no_linear_callback` and `--no_nonlinear_callback` are relevant to the dnls model. Since the integration amounts to a large number of FFTs, it is generally useful to use the cuFFT feature of FFT callbacks, and embed the linear/nonlinear evolution of the chain in the load phase of the FFTs. However, in my experience the cuFFT callbacks can on the contrary lead to a performance hit in some circumstances. By default, `nlchains` uses them, but you should experiment with these flags and see what is best suited for you. Do not forget to set the clocks of your card to the maximum available with `nvidia-smi` first!
 

@@ -16,7 +16,7 @@ namespace kg_disorder {
 	}
 
 	/*
-	 * Move entire chain in a warp. Compare with kg_fpu_toda.cu . Only difference is that the mp2 vector is held
+	 * Move entire chain in a warp. Compare with kg_fput_toda.cu . Only difference is that the mp2 vector is held
 	 * in shared memory in order to have a comparable register usage to the non-disorder version.
 	 */
 	__global__ void
@@ -85,7 +85,7 @@ namespace kg_disorder {
 	}
 
 	/*
-	 * Move entire chain in a thread. Compare with kg_fpu_toda.cu .
+	 * Move entire chain in a thread. Compare with kg_fput_toda.cu .
 	 * Since this is used for chain_length < 32, it is safe to use the constant memory version of mp2.
 	 */
 	template<uint16_t chain_length>
@@ -145,7 +145,7 @@ namespace kg_disorder {
 	}
 
 	/*
-	 * Move in split format. Compare with kg_fpu_toda.cu . The mp2 argument may alias the constant
+	 * Move in split format. Compare with kg_fput_toda.cu . The mp2 argument may alias the constant
 	 * memory array if the constant buffer is large enough to hold all the linear parameter values,
 	 * otherwise it resides in global memory.
 	 */

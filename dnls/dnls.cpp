@@ -15,7 +15,7 @@ using namespace std;
  * The Yoshida 6th order symplectic algorithm, implemented as per arXiv:1012.3242 . It is suggested in the paper
  * that the linear operator evolution can be performed as a FFT, and here we implement it so.
  *
- * Contrary to kg_fpu_toda or kg_disorder, each symplectic step is broken into a number of FFTs, hence different kernel
+ * Contrary to kg_fput_toda or kg_disorder, each symplectic step is broken into a number of FFTs, hence different kernel
  * invocations. This makes the algorithm much slower than the others implemented. This is mitigated by the use of
  * cuFFT callbacks, in order to coalesce the linear/nonlinear evolutions in the load callback of the FFTs. In my
  * experience cuFFT callbacks can be of great benefit, but also in some cases (depending on architecture, clocks,

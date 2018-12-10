@@ -77,13 +77,13 @@ set(optimized_chain_length 0 CACHE STRING "Create optimized kernels for optimize
 if(NOT optimized_chain_length MATCHES "^[0-9]+$" OR optimized_chain_length LESS 32)
     message(FATAL_ERROR "please specify -Doptimized_chain_length= as a number >= 32")
 endif()
-set_source_files_properties(kg_fpu_toda/kg_fpu_toda.cu kg_disorder/kg_disorder.cu PROPERTIES COMPILE_DEFINITIONS optimized_chain_length=${optimized_chain_length})
+set_source_files_properties(kg_fput_toda/kg_fput_toda.cu kg_disorder/kg_disorder.cu PROPERTIES COMPILE_DEFINITIONS optimized_chain_length=${optimized_chain_length})
 
 
 #link/build flags
 add_executable(nlchains
         common/main.cpp common/results.cpp common/utilities_cuda.cu common/results_entropy.cpp common/loop_control.cpp
-        kg_fpu_toda/kg_fpu_toda.cpp kg_fpu_toda/kg_fpu_toda.cu
+        kg_fput_toda/kg_fput_toda.cpp kg_fput_toda/kg_fput_toda.cu
         kg_disorder/kg_disorder.cpp kg_disorder/kg_disorder.cu
         dnls/dnls.cpp dnls/dnls.cu)
 
