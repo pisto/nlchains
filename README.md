@@ -25,7 +25,7 @@ Other relevant CMake flags (`-DFlag=Value`) are listed in the table below.
 | `MPI_CXX_COMPILER`    | If not in `$PATH`, path to your MPI C++ compiler                                |
 | `MPI_C_COMPILER`      | If not in `$PATH`, path to your MPI C compiler                                  |
 | `CMAKE_CUDA_COMPILER` | If not in `$PATH`, path to the CUDA nvcc                                        |
-| `CMAKE_CUDA_FLAGS`    | Flags for the GPU code generation, e.g. -arch=sm_35                             |
+| `CMAKE_CUDA_FLAGS`    | Flags for the GPU code generation, e.g. `-arch=sm_35`                           |
 | `portable`            | If `TRUE`, prefer linking static libraries to make the executable more portable |
 
 Two Dockerfiles are provided in the repo: they can be used to build `nlchains` in a Fedora virtual environment with minimal effort.
