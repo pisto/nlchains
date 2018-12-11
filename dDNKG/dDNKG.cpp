@@ -6,19 +6,19 @@
 #include "../common/results.hpp"
 #include "../common/symplectic.hpp"
 #include "../common/loop_control.hpp"
-#include "kg_disorder.hpp"
+#include "dDNKG.hpp"
 
 using namespace std;
 
 /*
- * Nonlinear Klein-Gordon with a mass parameter specific to every site.
+ * Nonlinear discrete Klein-Gordon with a mass parameter specific to every site.
  *
  * The linear eigensystem is solved, and the linear energies are calculated through an explicit projection on the
  * eigenstates: such operation is implemented as a matrix multiplication. This is pretty much the only difference
- * between this solver and kg_fput_toda.
+ * between this solver and DNKG_FPUT_Toda.
  */
 
-namespace kg_disorder {
+namespace dDNKG {
 
 	int main(int argc, char *argv[]) {
 
@@ -57,7 +57,7 @@ namespace kg_disorder {
 			auto vecsize = gconf.chain_length * sizeof(double), matsize =
 					size_t(gconf.chain_length) * gconf.chain_length * sizeof(double);
 			cudaMemcpy(mp2, mp2_host.memptr(), vecsize, cudaMemcpyHostToDevice) && assertcu;
-			cudaMemcpy(get_device_address(kg_disorder::mp2), mp2, min(sizeof(kg_disorder::mp2), vecsize),
+			cudaMemcpy(get_device_address(dDNKG::mp2), mp2, min(sizeof(dDNKG::mp2), vecsize),
 			           cudaMemcpyDeviceToDevice) && assertcu;
 
 			arma::mat interaction = diagmat(mp2_host), eigenvectors_host;
@@ -109,7 +109,7 @@ namespace kg_disorder {
 		loopi(8) dt_c_host[i] = symplectic_c[i] * gconf.dt, dt_d_host[i] = symplectic_d[i] * gconf.dt;
 		set_device_object(dt_c_host, dt_c);
 		set_device_object(dt_d_host, dt_d);
-		set_device_object(beta, kg_disorder::beta);
+		set_device_object(beta, dDNKG::beta);
 
 		plane2split splitter(gconf.chain_length, gconf.shard_copies);
 		splitter.split(gres.shard, streams[s_move]);
@@ -175,5 +175,5 @@ namespace kg_disorder {
 }
 
 ginit = [] {
-	::programs()["KleinGordon-disorder"] = kg_disorder::main;
+	::programs()["dDNKG"] = dDNKG::main;
 };

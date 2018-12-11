@@ -5,18 +5,18 @@
 #include <cub/warp/warp_reduce.cuh>
 #include "../common/utilities_cuda.cuh"
 #include "../common/configuration.hpp"
-#include "kg_disorder.hpp"
+#include "dDNKG.hpp"
 
-namespace kg_disorder {
+namespace dDNKG {
 
 	__constant__ double dt_c[8], dt_d[8], mp2[2048], beta;
 
-	__device__ double rhs_KG(double left, double center, double right, double mp2) {
+	__device__ double rhs_DNKG(double left, double center, double right, double mp2) {
 		return -(center * (mp2 + beta * center * center) - left - right);
 	}
 
 	/*
-	 * Move entire chain in a warp. Compare with kg_fput_toda.cu . Only difference is that the mp2 vector is held
+	 * Move entire chain in a warp. Compare with DNKG_FPUT_Toda.cu . Only difference is that the mp2 vector is held
 	 * in shared memory in order to have a comparable register usage to the non-disorder version.
 	 */
 	__global__ void
@@ -70,7 +70,7 @@ namespace kg_disorder {
 				if (!full_lane) phi[elements_in_thread] = phi[elements_in_thread + 1];
 				#pragma unroll
 				for (int i_0 = 0, i = 1; i_0 < elements_in_thread; i_0++, i++)
-					pi[i_0] += dt_d[k] * rhs_KG(phi[i - 1], phi[i], phi[i + 1], mp2_shmem[i_0][lane]);
+					pi[i_0] += dt_d[k] * rhs_DNKG(phi[i - 1], phi[i], phi[i + 1], mp2_shmem[i_0][lane]);
 			}
 		}
 		#pragma unroll
@@ -85,7 +85,7 @@ namespace kg_disorder {
 	}
 
 	/*
-	 * Move entire chain in a thread. Compare with kg_fput_toda.cu .
+	 * Move entire chain in a thread. Compare with DNKG_FPUT_Toda.cu .
 	 * Since this is used for chain_length < 32, it is safe to use the constant memory version of mp2.
 	 */
 	template<uint16_t chain_length>
@@ -108,12 +108,12 @@ namespace kg_disorder {
 				#pragma unroll
 				for (uint16_t i = 0; i < chain_length; i++)
 					pairs[i].x += dt_c_k * pairs[i].y;
-				pairs[0].y += dt_d[k] * rhs_KG(pairs[chain_length - 1].x, pairs[0].x, pairs[1].x, mp2[0]);
+				pairs[0].y += dt_d[k] * rhs_DNKG(pairs[chain_length - 1].x, pairs[0].x, pairs[1].x, mp2[0]);
 				#pragma unroll
 				for (uint16_t i = 1; i < chain_length - 1; i++)
-					pairs[i].y += dt_d[k] * rhs_KG(pairs[i - 1].x, pairs[i].x, pairs[i + 1].x, mp2[i]);
+					pairs[i].y += dt_d[k] * rhs_DNKG(pairs[i - 1].x, pairs[i].x, pairs[i + 1].x, mp2[i]);
 				pairs[chain_length - 1].y += dt_d[k] *
-				                             rhs_KG(pairs[chain_length - 2].x, pairs[chain_length - 1].x, pairs[0].x,
+				                             rhs_DNKG(pairs[chain_length - 2].x, pairs[chain_length - 1].x, pairs[0].x,
 				                                    mp2[chain_length - 1]);
 			}
 		}
@@ -145,7 +145,7 @@ namespace kg_disorder {
 	}
 
 	/*
-	 * Move in split format. Compare with kg_fput_toda.cu . The mp2 argument may alias the constant
+	 * Move in split format. Compare with DNKG_FPUT_Toda.cu . The mp2 argument may alias the constant
 	 * memory array if the constant buffer is large enough to hold all the linear parameter values,
 	 * otherwise it resides in global memory.
 	 */
@@ -170,7 +170,7 @@ namespace kg_disorder {
 				for (uint32_t i = chain_idx_0 + 2 * shard_copies; i <= chain_idx_last; i += shard_copies, mp2_i++) {
 					double current_pi = pi[i];
 					double current_updated_phi = (phi[i] += dt_c_k * current_pi);
-					pi[i - shard_copies] = previous_pi + dt_d[k] * rhs_KG(last_updated_phi[0],
+					pi[i - shard_copies] = previous_pi + dt_d[k] * rhs_DNKG(last_updated_phi[0],
 					                                                      last_updated_phi[1],
 					                                                      current_updated_phi,
 					                                                      *mp2_i);
@@ -179,8 +179,8 @@ namespace kg_disorder {
 					last_updated_phi[1] = current_updated_phi;
 				}
 				pi[chain_idx_last] =
-						previous_pi + dt_d[k] * rhs_KG(last_updated_phi[0], last_updated_phi[1], phi0, *mp2_i);
-				pi0 += dt_d[k] * rhs_KG(last_updated_phi[1], phi0, phi1, *mp2);
+						previous_pi + dt_d[k] * rhs_DNKG(last_updated_phi[0], last_updated_phi[1], phi0, *mp2_i);
+				pi0 += dt_d[k] * rhs_DNKG(last_updated_phi[1], phi0, phi1, *mp2);
 			}
 		}
 		phi0 += dt_c[7] * pi0;

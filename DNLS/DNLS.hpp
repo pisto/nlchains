@@ -5,7 +5,7 @@
 #include <cufftXt.h>
 #include "../common/utilities_cuda.cuh"
 
-namespace dnls {
+namespace DNLS {
 
 	completion evolve_nonlinear(double beta_dt_symplectic, cudaStream_t stream);
 

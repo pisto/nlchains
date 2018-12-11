@@ -3,7 +3,7 @@
 #include <cuda_runtime.h>
 #include "../common/utilities_cuda.cuh"
 
-namespace kg_disorder {
+namespace dDNKG {
 
 	extern __constant__ double dt_c[8], dt_d[8], mp2[2048], beta;
 

@@ -1,9 +1,9 @@
 #include <cub/iterator/cache_modified_input_iterator.cuh>
 #include "../common/utilities_cuda.cuh"
 #include "../common/configuration.hpp"
-#include "dnls.hpp"
+#include "DNLS.hpp"
 
-namespace dnls {
+namespace DNLS {
 
 	template<typename T>
 	using load_ldg = cub::CacheModifiedInputIterator<cub::LOAD_LDG, T>;

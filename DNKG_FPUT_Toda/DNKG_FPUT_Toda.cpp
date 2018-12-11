@@ -4,16 +4,16 @@
 #include "../common/results.hpp"
 #include "../common/symplectic.hpp"
 #include "../common/loop_control.hpp"
-#include "kg_fput_toda.hpp"
+#include "DNKG_FPUT_Toda.hpp"
 
 using namespace std;
 
 /*
  * Yoshida symplectic integration for the nonlinear Klein Gordon, alpha/beta FPUT and Toda chains.
- * For a description of the implementation strategies on GPU see kg_fput_toda.cu .
+ * For a description of the implementation strategies on GPU see DNKG_FPUT_Toda.cu .
  */
 
-namespace kg_fput_toda {
+namespace DNKG_FPUT_Toda {
 
 	template<Model model>
 	int main(int argc, char *argv[]) {
@@ -24,7 +24,7 @@ namespace kg_fput_toda {
 			using namespace boost::program_options;
 			parse_cmdline parser("Options for "s + argv[0]);
 			switch (model) {
-				case KG:
+				case DNKG:
 					parser.options.add_options()
 							(",m", value(&m)->required(), "linear parameter m")
 							("beta", value(&beta)->required(), "fourth order nonlinearity");
@@ -85,14 +85,14 @@ namespace kg_fput_toda {
 		loopi(8) dt_c_host[i] = symplectic_c[i] * gconf.dt, dt_d_host[i] = symplectic_d[i] * gconf.dt;
 		set_device_object(dt_c_host, dt_c);
 		set_device_object(dt_d_host, dt_d);
-		set_device_object(alpha, kg_fput_toda::alpha);
-		set_device_object(m, kg_fput_toda::m);
-		set_device_object(alpha2, kg_fput_toda::alpha2);
-		set_device_object(alpha2_inv, kg_fput_toda::alpha2_inv);
-		set_device_object(beta, kg_fput_toda::beta);
+		set_device_object(alpha, DNKG_FPUT_Toda::alpha);
+		set_device_object(m, DNKG_FPUT_Toda::m);
+		set_device_object(alpha2, DNKG_FPUT_Toda::alpha2);
+		set_device_object(alpha2_inv, DNKG_FPUT_Toda::alpha2_inv);
+		set_device_object(beta, DNKG_FPUT_Toda::beta);
 
 		/*
-		 * The code in kg_fput_toda.cu might not find an optimized kernel that uses the planar format. If that is the
+		 * The code in DNKG_FPUT_Toda.cu might not find an optimized kernel that uses the planar format. If that is the
 		 * or if the user specifies --split_kernel, then we use the split format (see utilities_cuda.cuh).
 		 */
 		plane2split *splitter = 0;
@@ -161,7 +161,7 @@ namespace kg_fput_toda {
 
 ginit = [] {
 	auto &programs = ::programs();
-	programs["KleinGordon"] = kg_fput_toda::main<kg_fput_toda::KG>;
-	programs["FPUT"] = kg_fput_toda::main<kg_fput_toda::FPUT>;
-	programs["Toda"] = kg_fput_toda::main<kg_fput_toda::Toda>;
+	programs["DNKG"] = DNKG_FPUT_Toda::main<DNKG_FPUT_Toda::DNKG>;
+	programs["FPUT"] = DNKG_FPUT_Toda::main<DNKG_FPUT_Toda::FPUT>;
+	programs["Toda"] = DNKG_FPUT_Toda::main<DNKG_FPUT_Toda::Toda>;
 };

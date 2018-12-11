@@ -7,7 +7,7 @@
 #include "../common/results.hpp"
 #include "../common/symplectic.hpp"
 #include "../common/loop_control.hpp"
-#include "dnls.hpp"
+#include "DNLS.hpp"
 
 using namespace std;
 
@@ -15,14 +15,14 @@ using namespace std;
  * The Yoshida 6th order symplectic algorithm, implemented as per arXiv:1012.3242 . It is suggested in the paper
  * that the linear operator evolution can be performed as a FFT, and here we implement it so.
  *
- * Contrary to kg_fput_toda or kg_disorder, each symplectic step is broken into a number of FFTs, hence different kernel
+ * Contrary to DNKG_FPUT_Toda or dDNKG, each symplectic step is broken into a number of FFTs, hence different kernel
  * invocations. This makes the algorithm much slower than the others implemented. This is mitigated by the use of
  * cuFFT callbacks, in order to coalesce the linear/nonlinear evolutions in the load callback of the FFTs. In my
  * experience cuFFT callbacks can be of great benefit, but also in some cases (depending on architecture, clocks,
  * number of GPUs used, etc.) they can degrade performance. By default, they are used for both linear and nonlinear
  * evolutions, but the user can disable one or both with the switches --no_linear_callback and --no_nonlinear_callback.
  */
-namespace dnls {
+namespace DNLS {
 
 	int main(int argc, char *argv[]) {
 
@@ -192,5 +192,5 @@ namespace dnls {
 }
 
 ginit = [] {
-	::programs()["dnls"] = dnls::main;
+	::programs()["DNLS"] = DNLS::main;
 };

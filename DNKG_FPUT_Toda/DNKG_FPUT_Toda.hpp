@@ -4,9 +4,9 @@
 #include <cuda_runtime.h>
 #include "../common/utilities_cuda.cuh"
 
-namespace kg_fput_toda {
+namespace DNKG_FPUT_Toda {
 	enum Model {
-		KG = 0, FPUT, Toda
+		DNKG = 0, FPUT, Toda
 	};
 	extern __constant__ double dt_c[8], dt_d[8], m, alpha, beta;
 	extern __constant__ double alpha2, alpha2_inv;

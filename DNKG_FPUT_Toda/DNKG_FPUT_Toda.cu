@@ -3,9 +3,9 @@
 #include <cub/util_ptx.cuh>
 #include "../common/utilities_cuda.cuh"
 #include "../common/configuration.hpp"
-#include "kg_fput_toda.hpp"
+#include "DNKG_FPUT_Toda.hpp"
 
-namespace kg_fput_toda {
+namespace DNKG_FPUT_Toda {
 
 	__constant__ double dt_c[8], dt_d[8], m, alpha, beta;
 
@@ -18,7 +18,7 @@ namespace kg_fput_toda {
 	struct RHS;
 
 	template<>
-	struct RHS<KG> {
+	struct RHS<DNKG> {
 		__device__ RHS(double, double) {}
 
 		__device__ double operator()(double left, double center, double right) {
@@ -288,7 +288,7 @@ namespace kg_fput_toda {
 		return completion(stream);
 	}
 
-	template completion move<KG>(plane2split *&splitter, cudaStream_t stream);
+	template completion move<DNKG>(plane2split *&splitter, cudaStream_t stream);
 	template completion move<FPUT>(plane2split *&splitter, cudaStream_t stream);
 	template completion move<Toda>(plane2split *&splitter, cudaStream_t stream);
 
