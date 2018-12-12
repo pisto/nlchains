@@ -1,6 +1,22 @@
 # nlchains
 
-An implementation of the 6th order Yoshida symplectic integration algorithm for a number of models: nonlinear Klein-Gordon (equal or different masses), α/β-FPUT, Toda, discrete nonlinear Schrödinger. The implementation is suited to run a large ensemble of realizations of these models, to calculate the average energy per linear mode, and the associated information entropy to monitor the route to thermalization due to the nonlinearity. Since the integration is symplectic, there is no support for forcing or dissipation.
+An implementation of the 6th order Yoshida symplectic integration algorithm for a number of models. The implementation is suited to run a large ensemble of realizations of these models. The program also calculates the average energy per linear mode, and the associated information entropy to monitor the route to thermalization due to the nonlinearity. Since the integration is symplectic, there is no support for forcing or dissipation.
+
+Supported models:
+
+| `nlchains` subprogram | Hamiltonian density | Description                                      |
+|-----------------------|---------------------|--------------------------------------------------|
+| DNKG                  | ![DNKG][DNKG]       | discrete nonlinear Klein-Gordon, equal masses    |
+| DNLS                  | ![DNLS][DNLS]       | discrete nonlinear Schrödinger                   |
+| FPUT                  | ![FPUT][FPUT]       | Fermi-Pasta-Ulam-Tsingou, α and β variants       |
+| Toda                  | ![Toda][Toda]       | Toda lattice                                     |
+| dDNKG                 | ![dDNKG][dDNKG]     | discrete nonlinear Klein-Gordon, per-site masses |
+
+[DNKG]: https://bit.ly/2QLJGW5 "\frac{p_{x}^2}{2}+\frac{\left(q_{x+1}-q_{x}\right)^2}{2}+m\frac{q_{x}^2}{2}+\beta\frac{q_{x}^4}{4}"
+[DNLS]: https://bit.ly/2Lb1e8M "|\psi_{x+1}-\psi_x|^2+\beta\frac{|\psi_x|^4}{2}"
+[FPUT]: https://bit.ly/2BbLNZB "\frac{p_{x}^2}{2}+\frac{\left(q_{x+1}-q_{x}\right)^2}{2}+\alpha\frac{\left(q_{x+1}-q_{x}\right)^3}{3}+\beta\frac{\left(q_{x+1}-q_{x}\right)^4}{4}"
+[Toda]: https://bit.ly/2BbwgsK "\frac{p_{x}^2}{2}+\frac{1}{4 \alpha ^2}\left(e^{2 \alpha  \left(q_{x+1}-q_{x}\right)}-2 \alpha  \left(q_{x+1}-q_{x}\right)-1\right)"
+[dDNKG]: https://bit.ly/2Ee2xlQ "\frac{p_{x}^2}{2}+\frac{\left(q_{x+1}-q_{x}\right)^2}{2}+m_x\frac{q_{x}^2}{2}+\beta\frac{q_{x}^4}{4}"
 
 # Prerequisites and building
 
@@ -10,7 +26,7 @@ The build prerequisites are: [CMake](https://cmake.org/) (>=3.9), MPI (minimum M
 
 To build nchains, run the following
 ```bash
-git clone --recurse-submodules https://github.com/pisto/nlchains.git
+git clone --recurse-submodules git@bitbucket.org:pisto/nlchains.git
 cd nlchains
 mkdir build
 cmake -DCMAKE_BUILD_TYPE=Release -Doptimized_chain_length=XX [other flags..] ..
@@ -32,6 +48,10 @@ Two Dockerfiles are provided in the repo: they can be used to build `nlchains` i
 
 # Launching a simulation
 
+A `nlchains` invokation looks like this
+```
+[MPI launcher] nlchains <model> <common options> <model-specific options>
+```
 `nlchains` can be launched stand-alone to use one GPU on the current host, or through your MPI implementation to use multiple GPUs across multiple nodes. When multiple GPUs are present, `nlchains` splits equally the number of copies of the ensemble among the available GPUs. There is no way to divide the work in unequal shards: all GPUs should have essentially the same computational speed (check the clocks with `nvidia-smi`!), otherwise the faster GPUs will run at the pace of the slower ones.
 
 When launching through MPI, you must set one process for each GPU on each host. Within a host, `nlchains` calculates the number of local processes, and uses that many GPUs, starting from the CUDA GPU index 0. If you want to select some specific GPUs you can use the environment variable [`CUDA_VISIBLE_DEVICES`](https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#env-vars).
@@ -43,10 +63,10 @@ All `nlchains` dumps are in binary format (64bit double, or 128bit complex doubl
 | `<prefix>-<timestep>`             | Full dump of the ensemble state at the specified timestep, as a C++ array: `double[copy][chain_index][2]` or ` complex<double>[copy][chain_index]`  |
 | `<prefix>-linenergies-<timestep>` | Linear energy per mode at the specified timestep                                                                                                    |
 | `<prefix>-entropy`                | List of tuples `{ time, Wave Turbulence entropy, information entropy }`                                                                             |
-| `<prefix>-eigenvectors`           | (KleinGordon-disorder only): eigenvectors                                                                                                           |
-| `<prefix>-omegas`                 | (KleinGordon-disorder only): square root of the eigenvalues (pulsation of the eigenvectors)                                                         |
+| `<prefix>-eigenvectors`           | (dDNKG only): eigenvectors                                                                                                                          |
+| `<prefix>-omegas`                 | (dDNKG): square root of the eigenvalues (pulsation of the eigenvectors)                                                                             |
 
-The program is divided into subprograms. The first argument must always be the name of the subprogram, that is one of `FPUT`, `KleinGordon`, `KleinGordon-disorder`, `Toda`, `dnls`. The common options are the following:
+The program is divided into subprograms. The first argument must always be the name of the subprogram, that is one of `DNKG`, `DNLS`, `FPUT`, `Toda`, `dDNKG`. The common options are the following:
 ```
   -v [ --verbose ]              print extra informations
   -i [ --initial ] arg          initial state file
@@ -70,12 +90,12 @@ The initial state file has the same format of the full dump. The argument to `--
 
 Each model has a few extra argument:
 ```
-  -m arg                        linear parameter m (KleinGordon), linear parameters m filename (KleinGordon-disorder)
+  -m arg                        linear parameter m (DNLG), linear parameters m filename (dDNLG)
   --alpha arg                   third order nonlinearity (FPUT), exponential steepness (Toda)
-  --beta arg                    fourth order nonlinearity (KleinGordon, FPUT, KleinGordon-disorder, dnls)
-  --split_kernel                force use of split kernel (KleinGordon, FPUT, Toda, KleinGordon-disorder)
-  --no_linear_callback          do not use cuFFT callback for linear evolution (dnls)
-  --no_nonlinear_callback       do not use cuFFT callback for nonlinear evolution (dnls)
+  --beta arg                    fourth order nonlinearity (DNLG, FPUT, dDNLG, DNLS)
+  --split_kernel                force use of split kernel (DNLG, FPUT, Toda, dDNLG)
+  --no_linear_callback          do not use cuFFT callback for linear evolution (DNLS)
+  --no_nonlinear_callback       do not use cuFFT callback for nonlinear evolution (DNLS)
 ```
 For an explanation of the `--split_kernel`, `--no_linear_callback` and `--no_nonlinear_callback` arguments, read the [Performance considerations](#performance-considerations).
 
@@ -86,15 +106,15 @@ mpirun -n 2 nlchains FPUT -v -p alpha-N128-alpha1 -i alpha-N128 -n 128 -c 4096 -
 
 ## Performance considerations
 
-The compile flag `-Doptimized_chain_length=XX` and the command line option `--split_kernel` are relevant for the KleinGordon, FPUT, Toda, KleinGordon-disorder models. There are internally three GPU implementations of each of these models: one specialized for `--chain_length` less than 32, one optimized for the value passed to `optimized_chain_length`, and one generic. The generic version is referred to as the "split kernel" version. The split kernel is the slowest one because every nonlinear chain element update causes a read from memory, but it is flexible, and works with very large values of `--chain_length`. The other two are much more optimized since they keep the whole chain state in registers rather than memory. It is advised to recompile `nlchains` with a different value of `optimized_chain_length` for each target `--chain_length` that you plan to use. If `nlchains` cannot find the optimized version, it will fallback to the split kernel version, generating a warning.
+The compile flag `-Doptimized_chain_length=XX` and the command line option `--split_kernel` are relevant for all models except `DNLS`. There are internally three GPU implementations of each of these models: one specialized for `--chain_length` less than 32, one optimized for the value passed to `optimized_chain_length`, and one generic. The generic version is referred to as the "split kernel" version. The split kernel is the slowest one because every nonlinear chain element update causes a read from memory, but it is flexible, and works with very large values of `--chain_length`. The other two are much more optimized since they keep the whole chain state in registers rather than memory. It is advised to recompile `nlchains` with a different value of `optimized_chain_length` for each target `--chain_length` that you plan to use. If `nlchains` cannot find the optimized version, it will fallback to the split kernel version, generating a warning.
 
-The command line options `--no_linear_callback` and `--no_nonlinear_callback` are relevant to the dnls model. Since the integration amounts to a large number of FFTs, it is generally useful to use the cuFFT feature of FFT callbacks, and embed the linear/nonlinear evolution of the chain in the load phase of the FFTs. However, in my experience the cuFFT callbacks can on the contrary lead to a performance hit in some circumstances. By default, `nlchains` uses them, but you should experiment with these flags and see what is best suited for you. Do not forget to set the clocks of your card to the maximum available with `nvidia-smi` first!
+The command line options `--no_linear_callback` and `--no_nonlinear_callback` are relevant to the `DNLS` model. Since the integration amounts to a large number of FFTs, it is generally useful to use the cuFFT feature of FFT callbacks, and embed the linear/nonlinear evolution of the chain in the load phase of the FFTs. However, in my experience the cuFFT callbacks can on the contrary lead to a performance hit in some circumstances. By default, `nlchains` uses them, but you should experiment with these flags and see what is best suited for you. Do not forget to set the clocks of your card to the maximum available with `nvidia-smi` first!
 
 # Known bugs
 
 Because of a bug in older versions of CMake, the MPI compile flags (`MPI_CXX_COMPILE_OPTIONS`) are not honored. See `CMakeLists.txt` for more details.
 
-Because of a bug in `gcc` version 5.* or 6.*, opening a non-existen file for the initial state, or the mass parameter configuration in the nonlinear Klein Gordon case may return a rather generic message:
+Because of a bug in `gcc` version 5.* or 6.*, opening a non-existen file for the initial state, or the mass parameter configuration in the `dDNKG` model may return a rather generic message:
 ```
 terminate called after throwing an instance of 'std::ios_base::failure'
   what():  basic_ios::clear
