@@ -35,6 +35,7 @@ include_directories(cub/)
 find_package(MPI REQUIRED)
 include_directories(${MPI_INCLUDE_PATH})
 add_definitions(-DMPICH_SKIP_MPICXX -DOMPI_SKIP_MPICXX)     #try not to reference MPI C++ bindings
+string(STRIP "${MPI_CXX_COMPILE_OPTIONS}" MPI_CXX_COMPILE_OPTIONS)
 if(${CMAKE_VERSION} VERSION_GREATER_EQUAL "3.13.0")
     add_compile_options("${MPI_CXX_COMPILE_OPTIONS}")
 elseif(MPI_CXX_COMPILE_OPTIONS MATCHES "[^ ]")
