@@ -61,7 +61,7 @@ include_directories(${CUDA_ROOT}/include)
 if(CMAKE_BUILD_TYPE MATCHES Debug)
     set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -G")
 endif()
-if(CMAKE_BUILD_TYPE MATCHES Rel)
+if(CMAKE_BUILD_TYPE MATCHES Rel AND NOT portable)
     #aid SIMD vectorization in results_entropy.cpp
     if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
         set_property(SOURCE common/results_entropy.cpp APPEND PROPERTY COMPILE_FLAGS "-Ofast")
