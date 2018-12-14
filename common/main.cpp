@@ -94,7 +94,7 @@ void parse_cmdline::operator()(int argc, char *argv[]) try {
 	if (gconf.dump_prefix.empty())
 		throw invalid_argument("--prefix must not be an empty string");
 	if (gconf.dump_interval % gconf.kernel_batching)
-		throw invalid_argument("--dump_interval must be a multiple of --batch");
+		throw invalid_argument("--dump_interval must be a multiple of --kernel_batching");
 	if (gconf.steps % gconf.dump_interval || gconf.time_offset % gconf.dump_interval)
 		throw invalid_argument("--time_offset must be a multiple of --dump_interval");
 	if (gconf.time_offset && gconf.steps && gconf.time_offset >= gconf.steps)
