@@ -13,7 +13,7 @@ results::results(bool a0is0) : a0is0(a0is0), linenergies(gconf.chain_length),
 		if (entropy_modes_indices.size()) throw invalid_argument("too few modes for the calculation of entropy");
 	}
 	if (mpi_global_coord) return;
-	entropydump = ofstream(gconf.dump_prefix + "-entropy-");
+	entropydump = ofstream(gconf.dump_prefix + "-entropy");
 	entropydump.exceptions(ios::eofbit | ios::failbit | ios::badbit);
 }
 

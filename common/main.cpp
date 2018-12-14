@@ -90,7 +90,7 @@ void parse_cmdline::operator()(int argc, char *argv[]) try {
 		throw invalid_argument("--entropy must be >= 0");
 	if (vm.count("entropy"))
 		gconf.entropy_limit_type = vm.count("WTlimit") ? configuration::WT : configuration::INFORMATION;
-	if (!vm.count("dumpsteps")) gconf.dump_interval = gconf.kernel_batching;
+	if (!vm.count("dump_interval")) gconf.dump_interval = gconf.kernel_batching;
 	if (gconf.dump_prefix.empty())
 		throw invalid_argument("--prefix must not be an empty string");
 	if (gconf.dump_interval % gconf.kernel_batching)
