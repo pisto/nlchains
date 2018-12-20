@@ -57,7 +57,6 @@ struct parse_cmdline {
 
 extern struct resources {
 	cudalist<double2> shard;
-	cudalist<double> linenergies;
 	cudalist<double2, true> shard_host;
 	cudalist<double, true> linenergies_host;
 } gres;

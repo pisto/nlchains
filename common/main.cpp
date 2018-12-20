@@ -106,10 +106,8 @@ void parse_cmdline::operator()(int argc, char *argv[]) try {
 	gconf.shard_elements = uint32_t(gconf.chain_length) * gconf.shard_copies;
 	gconf.sizeof_shard = sizeof(double2) * gconf.shard_elements;
 	gres.shard = cudalist<double2>(gconf.shard_elements);
-	gres.linenergies = cudalist<double>(gconf.chain_length);
 	gres.shard_host = cudalist<double2, true>(gconf.shard_elements, false);
 	gres.linenergies_host = cudalist<double, true>(gconf.chain_length, false);
-	cudaMemset(gres.linenergies, 0, sizeof(double) * gconf.chain_length) && assertcu;
 	memset(gres.linenergies_host, 0, sizeof(double) * gconf.chain_length);
 	//XXX catching ios_base::failure does not work with gcc 5/6, see https://gcc.gnu.org/bugzilla/show_bug.cgi?id=66145
 	//working around it would be difficult and ugly, let's just hope software stacks move on.
