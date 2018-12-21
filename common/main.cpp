@@ -67,7 +67,7 @@ parse_cmdline::parse_cmdline(const string &name) : options(name) {
 			("entropymask", value(&entropymask_filename), "mask of linenergies to include in entropy calculation")
 			("prefix,p", value(&gconf.dump_prefix)->required(), "prefix for dump files")
 			("dump_interval", value(&gconf.dump_interval),
-			 "number of steps between full state dumps (defaults to same value as --batch, does not affect other dump or entropy time granularity)");
+			 "number of steps between full state dumps (defaults to same value as --batch, does not affect time granularity of entropy)");
 }
 
 void parse_cmdline::operator()(int argc, char *argv[]) try {
