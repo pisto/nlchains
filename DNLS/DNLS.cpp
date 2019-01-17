@@ -81,9 +81,10 @@ namespace DNLS {
 		 * The settings for the callbacks (the symplectic time step, or the linear evolution table) are put on global
 		 * variables asynchronously with additional streams.
 		 */
-		cufftHandle fft_plain = 0, fft_elvolve_psik = 0, fft_elvolve_psi = 0;
+		cufftHandle fft_plain = 0, fft_plain_entropy = 0, fft_elvolve_psik = 0, fft_elvolve_psi = 0;
 		destructor([&] {
 			cufftDestroy(fft_plain);
+			cufftDestroy(fft_plain_entropy);
 			cufftDestroy(fft_elvolve_psik);
 			cufftDestroy(fft_elvolve_psi);
 		});
@@ -107,6 +108,9 @@ namespace DNLS {
 			};
 			init_plan(fft_plain);
 			update_max_size(fft_plain);
+			init_plan(fft_plain_entropy);
+			cufftSetStream(fft_plain_entropy, streams[s_entropy]) && assertcufft;
+			update_max_size(fft_plain_entropy);
 			if (!no_linear_callback) {
 				init_plan(fft_elvolve_psik);
 				auto evolve_linear_ptr_host = get_device_object(callback::evolve_linear_ptr);
@@ -127,6 +131,7 @@ namespace DNLS {
 			}
 			area = maxsize;
 			cufftSetWorkArea(fft_plain, area) && assertcufft;
+			cufftSetWorkArea(fft_plain_entropy, area) && assertcufft;
 			if (!no_linear_callback) cufftSetWorkArea(fft_elvolve_psik, area) && assertcufft;
 			if (!no_nonlinear_callback) cufftSetWorkArea(fft_elvolve_psi, area) && assertcufft;
 		}
@@ -145,8 +150,8 @@ namespace DNLS {
 		destructor(cudaDeviceSynchronize);
 		while (1) {
 			if (loop_ctl % gconf.dump_interval == 0) dumper();
-			cufftExecZ2Z(fft_plain, gres.shard, psis_k, CUFFT_FORWARD) && assertcufft;
-			completion(streams[s_move]).blocks(streams[s_entropy]);
+			cufftExecZ2Z(fft_plain_entropy, gres.shard, psis_k, CUFFT_FORWARD) && assertcufft;
+			completion(streams[s_entropy]).blocks(streams[s_move]);
 			make_linenergies(psis_k, omega, streams[s_entropy]);
 			add_cuda_callback(streams[s_entropy], loop_ctl.callback_err, [&, t = *loop_ctl](cudaError_t status) {
 				if (loop_ctl.callback_err) return;
