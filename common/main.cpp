@@ -85,7 +85,7 @@ void parse_cmdline::operator()(int argc, char *argv[]) try {
 		throw invalid_argument("copies must be a multiple of the number of devices");
 	gconf.shard_copies = gconf.copies_total / mpi_global.size();
 	if (gconf.chain_length < 2 || !gconf.shard_copies || gconf.dt <= 0 || !gconf.kernel_batching)
-		throw invalid_argument("--chain_length must be >= 2, copies, --dt and --kernel_batching must be positive numbers");
+		throw invalid_argument("--chain_length must be >= 2, --copies, --dt and --kernel_batching must be positive numbers");
 	if (gconf.entropy_limit < 0)
 		throw invalid_argument("--entropy must be >= 0");
 	if (vm.count("entropy"))
