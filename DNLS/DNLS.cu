@@ -58,7 +58,6 @@ namespace DNLS {
 
 		__constant__ double beta_dt_symplectic;
 
-
 		__device__ cufftDoubleComplex evolve_nonlinear(void *in, size_t offset, void *, void *) {
 			auto psi = static_cast<cufftDoubleComplex *>(in)[offset];
 			return psi * e_pow_I(beta_dt_symplectic * (psi.x * psi.x + psi.y * psi.y));

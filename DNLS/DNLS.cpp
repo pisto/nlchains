@@ -63,16 +63,16 @@ namespace DNLS {
 		 * Precompute the evolution factors in Fourier space (linear operator), including FFT normalization, for all
 		 * the symplectic integration steps.
 		 */
-		cudalist<cufftDoubleComplex> evolve_linear_tables_all(8 * gconf.chain_length);
+		cudalist<cufftDoubleComplex> evolve_linear_tables_all(7 * gconf.chain_length);
 		{
-			boost::multi_array<complex<double>, 2> evolve_linear_table_host(boost::extents[8][gconf.chain_length]);
+			boost::multi_array<complex<double>, 2> evolve_linear_table_host(boost::extents[7][gconf.chain_length]);
 			auto normalization = 1. / gconf.chain_length;
 			complex<double> complexdt = 1i * gconf.dt;
-			loopi(8) loopj(gconf.chain_length) evolve_linear_table_host[i][j] =
-					                                   exp(complexdt * symplectic_d[i == 7 ? 0 : i] * omega_host[j]) *
+			loopi(7) loopj(gconf.chain_length) evolve_linear_table_host[i][j] =
+					                                   exp(complexdt * symplectic_d[i] * omega_host[j]) *
 					                                   normalization;
 			cudaMemcpy(evolve_linear_tables_all, evolve_linear_table_host.origin(),
-			           8 * gconf.chain_length * sizeof(cufftDoubleComplex), cudaMemcpyHostToDevice) && assertcu;
+			           7 * gconf.chain_length * sizeof(cufftDoubleComplex), cudaMemcpyHostToDevice) && assertcu;
 		}
 
 		/*
