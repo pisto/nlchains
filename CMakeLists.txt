@@ -15,20 +15,6 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
     link_libraries(-Xlinker --as-needed)
 endif()
 
-set(portable "0" CACHE STRING "Link in static libraries where possible")
-if(portable)
-    #Using -static is a nightmare. Just prefer static libraries.
-    set(CUBLAS_LIB -lcublas_static)
-    set(CMAKE_FIND_LIBRARY_SUFFIXES .a ${CMAKE_FIND_LIBRARY_SUFFIXES})
-    set(Boost_USE_STATIC_LIBS 1)
-    set(BLA_STATIC 1)
-    if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
-        link_libraries(-static-libgcc -static-libstdc++)
-    endif()
-else()
-    set(CUBLAS_LIB -lcublas)
-endif()
-
 #CUDA cub (maybe here as a sub-module, maybe system-wise)
 include_directories(cub/)
 
@@ -62,7 +48,7 @@ include_directories(${CUDA_ROOT}/include)
 if(CMAKE_BUILD_TYPE MATCHES Debug)
     set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -G")
 endif()
-if(CMAKE_BUILD_TYPE MATCHES Rel AND NOT portable)
+if(CMAKE_BUILD_TYPE MATCHES Rel)
     #aid SIMD vectorization in results_entropy.cpp
     if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
         set_property(SOURCE common/results_entropy.cpp APPEND PROPERTY COMPILE_FLAGS "-Ofast")
@@ -96,5 +82,4 @@ target_link_libraries(nlchains
         ${Boost_LIBRARIES}
         ${MPI_CXX_LINK_FLAGS} ${MPI_CXX_LIBRARIES}
         ${ARMADILLO_LIBRARIES}
-        ${CUBLAS_LIB}
-        -lcufft_static -lculibos)
+        -lcublas -lcufft_static -lculibos)
