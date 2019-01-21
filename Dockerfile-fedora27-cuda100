@@ -1,0 +1,12 @@
+FROM fedora:27
+
+RUN dnf install -y https://developer.download.nvidia.com/compute/cuda/repos/fedora27/x86_64/cuda-repo-fedora27-10.0.130-1.x86_64.rpm
+RUN dnf install -y cuda-compiler-10-0 cuda-cudart-dev-10-0 cuda-cufft-dev-10-0 cuda-cublas-dev-10-0 git armadillo-devel boost-openmpi-devel cmake openmpi-devel
+ENV PATH="/usr/lib64/openmpi/bin/:/usr/local/cuda-10.0/bin/:${PATH}"
+
+RUN git clone --recurse https://pisto@bitbucket.org/pisto/nlchains.git /tmp/nlchains
+RUN mkdir /tmp/nlchains/build
+WORKDIR /tmp/nlchains/build
+RUN cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_CUDA_FLAGS="-gencode arch=compute_35,code=sm_35 -gencode arch=compute_60,code=sm_60 -gencode arch=compute_70,code=sm_70" -Doptimized_chain_length=64 /tmp/nlchains
+RUN make -j
+RUN cp nlchains /usr/bin/nlchains

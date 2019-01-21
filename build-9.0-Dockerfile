@@ -1,8 +1,0 @@
-FROM fedora:25
-
-RUN dnf update -y && dnf clean all
-RUN dnf install -y http://developer.download.nvidia.com/compute/cuda/repos/fedora25/x86_64/cuda-repo-fedora25-9.1.85-1.x86_64.rpm \
- && dnf install -y cuda-core-9-0 cuda-cudart-dev-9-0 cuda-cufft-dev-9-0 cuda-cublas-dev-9-0 armadillo-devel boost-devel boost-openmpi-devel cmake make openmpi-devel \
- && dnf clean all
-
-ENV PATH="/usr/lib64/openmpi/bin/:/usr/local/cuda-9.0/bin/:${PATH}"

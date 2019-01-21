@@ -1,0 +1,18 @@
+FROM ubuntu:18.04
+
+WORKDIR /tmp/
+RUN apt-get update
+RUN apt-get install -y gnupg2 wget
+RUN wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu1804/x86_64/cuda-repo-ubuntu1804_10.0.130-1_amd64.deb
+RUN dpkg -i ./cuda-repo-ubuntu1804_10.0.130-1_amd64.deb
+RUN apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/repos/ubuntu1804/x86_64/7fa2af80.pub
+RUN apt-get update
+RUN apt-get install -y cuda-compiler-10-0 cuda-cudart-dev-10-0 cuda-cufft-dev-10-0 cuda-cublas-dev-10-0 git libarmadillo-dev libboost-mpi-dev libboost-program-options-dev cmake
+ENV PATH="/usr/local/cuda-10.0/bin/:${PATH}"
+
+RUN git clone --recurse https://pisto@bitbucket.org/pisto/nlchains.git /tmp/nlchains
+RUN mkdir /tmp/nlchains/build
+WORKDIR /tmp/nlchains/build
+RUN cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_CUDA_FLAGS="-gencode arch=compute_35,code=sm_35 -gencode arch=compute_60,code=sm_60 -gencode arch=compute_70,code=sm_70" -Doptimized_chain_length=64 /tmp/nlchains
+RUN make -j
+RUN cp nlchains /usr/bin/nlchains
