@@ -67,7 +67,7 @@ namespace DNLS {
 		{
 			boost::multi_array<complex<double>, 2> evolve_linear_table_host(boost::extents[7][gconf.chain_length]);
 			auto normalization = 1. / gconf.chain_length;
-			complex<double> complexdt = 1i * gconf.dt;
+			complex<double> complexdt = -1i * gconf.dt;
 			loopi(7) loopj(gconf.chain_length) evolve_linear_table_host[i][j] =
 					                                   exp(complexdt * symplectic_d[i] * omega_host[j]) *
 					                                   normalization;

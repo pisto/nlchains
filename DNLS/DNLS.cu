@@ -13,7 +13,7 @@ namespace DNLS {
 		uint32_t idx = blockIdx.x * blockDim.x + threadIdx.x;
 		if (idx >= shard_elements) return;
 		auto &psi = psis[idx];
-		psi *= e_pow_I(beta_dt_symplectic * (psi.x * psi.x + psi.y * psi.y));
+		psi *= e_pow_I(-beta_dt_symplectic * (psi.x * psi.x + psi.y * psi.y));
 	}
 
 	__global__ void evolve_linear_kernel(uint32_t shard_elements, uint16_t chainlen, cufftDoubleComplex *psis_k,
@@ -60,7 +60,7 @@ namespace DNLS {
 
 		__device__ cufftDoubleComplex evolve_nonlinear(void *in, size_t offset, void *, void *) {
 			auto psi = static_cast<cufftDoubleComplex *>(in)[offset];
-			return psi * e_pow_I(beta_dt_symplectic * (psi.x * psi.x + psi.y * psi.y));
+			return psi * e_pow_I(-beta_dt_symplectic * (psi.x * psi.x + psi.y * psi.y));
 		}
 
 		__device__ const cufftCallbackLoadZ evolve_linear_ptr = evolve_linear, evolve_nonlinear_ptr = evolve_nonlinear;
