@@ -20,19 +20,34 @@ Supported models:
 
 # Prerequisites and building
 
-This software has been tested primarily on CUDA 9.0 and K80 devices on Linux. It is expected to work on later CUDA toolchains and GPU architectures. Mac has not been tested but it should in theory work. Windows is not supported, because cuFFT callbacks are used and they are not available in Windows.
+This software has been tested primarily on CUDA 9.0 and K40 devices on Linux. It is expected to work on later CUDA toolchains and GPU architectures. Mac has not been tested but it should in theory work. Windows is not supported, because cuFFT callbacks are used and they are not available in Windows.
 
-The build prerequisites are: [CMake](https://cmake.org/) (>=3.9), MPI (minimum MPI-2, Open MPI 2.x has been tested), [Boost](https://www.boost.org/) (Boost.Program_options, Boost.MPI), [Armadillo](http://arma.sourceforge.net/). From the CUDA Toolkit, we use cuFFT and cuBLAS.
+The build prerequisites are: [CMake](https://cmake.org/) (>=3.9), MPI (minimum MPI-2, Open MPI 2.x has been tested), [Boost](https://www.boost.org/) (Boost.Program_options, Boost.MPI), [Armadillo](http://arma.sourceforge.net/). From the CUDA Toolkit, we use cuFFT and cuBLAS. For an Ubuntu environment, the requires packages should be `libarmadillo-dev libboost-mpi-dev libboost-program-options-dev cmake`, while for a Fedora environment they should be `armadillo-devel boost-openmpi-devel cmake openmpi-devel`.
+
+## Building with Docker
+
+Since the interaction between host operating system, compiler version and CUDA SDK version can be complex, some Dockerfiles are provided in order to build `nlchains` in a Docker environment. Simply run one of the following:
+```bash
+#CUDA 9.0, Fedora
+docker build -f Dockerfile-fedora25-cuda90 --build-arg optimized_chain_length=## .
+#CUDA 10.0, Fedora
+docker build -f Dockerfile-fedora27-cuda100 --build-arg optimized_chain_length=## .
+#CUDA 10.0, Ubuntu
+docker build -f Dockerfile-ubuntu1804-cuda100 --build-arg optimized_chain_length=## .
+```
+Please note that the parameter `--build-arg optimized_chain_length=##` with ## some number greater than 32 is necessary, because some optimized versions of the kernels need to be generated with a compile-time constant of the intendend value of the chain length. The generated binary can run any other value of the chain length, but without any specific optimization. For more information read section [Performance considerations](#performance-considerations).
+
+## Building manually
 
 To build nchains, run the following
 ```bash
-git clone --recurse-submodules git@bitbucket.org:pisto/nlchains.git
+git clone --recurse https://pisto@bitbucket.org/pisto/nlchains.git
 cd nlchains
 mkdir build
-cmake -DCMAKE_BUILD_TYPE=Release -Doptimized_chain_length=XX [other flags..] ..
+cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_CUDA_FLAGS="-gencode arch=compute_35,code=sm_35 -gencode arch=compute_60,code=sm_60 -gencode arch=compute_70,code=sm_70" -Doptimized_chain_length=## ..
 make -j
 ```
-Please note that the parameter `-Doptimized_chain_length=XX` is necessary, because some optimized versions of the kernels need to be generated with a compile-time constant of the intendend value of the chain length. The generated binary can run any other value of the chain length, but without any specific optimization. For more information read go to section [Performance considerations](#performance-considerations).
+Please note that the parameter `-Doptimized_chain_length=##` with ## some number greater than 32 is necessary, because some optimized versions of the kernels need to be generated with a compile-time constant of the intendend value of the chain length. The generated binary can run any other value of the chain length, but without any specific optimization. For more information read section [Performance considerations](#performance-considerations).
 
 Other relevant CMake flags (`-DFlag=Value`) are listed in the table below.
 
@@ -42,9 +57,6 @@ Other relevant CMake flags (`-DFlag=Value`) are listed in the table below.
 | `MPI_C_COMPILER`      | If not in `$PATH`, path to your MPI C compiler                                  |
 | `CMAKE_CUDA_COMPILER` | If not in `$PATH`, path to the CUDA nvcc                                        |
 | `CMAKE_CUDA_FLAGS`    | Flags for the GPU code generation, e.g. `-arch=sm_35`                           |
-| `portable`            | If `TRUE`, prefer linking static libraries to make the executable more portable |
-
-Two Dockerfiles are provided in the repo: they can be used to build `nlchains` in a Fedora virtual environment with minimal effort.
 
 # Launching a simulation
 
