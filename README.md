@@ -29,13 +29,13 @@ The build prerequisites are: [CMake](https://cmake.org/) (>=3.9), MPI (minimum M
 Since the interaction between host operating system, compiler version and CUDA SDK version can be complex, some Dockerfiles are provided in order to build `nlchains` in a Docker environment. Simply run one of the following:
 ```bash
 #CUDA 9.0, Fedora
-docker build -f Dockerfile-fedora25-cuda90 --build-arg optimized_chain_length=## .
+docker build -f Dockerfile-fedora25-cuda90 --build-arg optimized_chain_length=XX .
 #CUDA 10.0, Fedora
-docker build -f Dockerfile-fedora27-cuda100 --build-arg optimized_chain_length=## .
+docker build -f Dockerfile-fedora27-cuda100 --build-arg optimized_chain_length=XX .
 #CUDA 10.0, Ubuntu
-docker build -f Dockerfile-ubuntu1804-cuda100 --build-arg optimized_chain_length=## .
+docker build -f Dockerfile-ubuntu1804-cuda100 --build-arg optimized_chain_length=XX .
 ```
-Please note that the parameter `--build-arg optimized_chain_length=##` with ## some number greater than 32 is necessary, because some optimized versions of the kernels need to be generated with a compile-time constant of the intendend value of the chain length. The generated binary can run any other value of the chain length, but without any specific optimization. For more information read section [Performance considerations](#performance-considerations).
+Please note that the parameter `--build-arg optimized_chain_length=XX` with XX some number greater than 32 is necessary, because some optimized versions of the kernels need to be generated with a compile-time constant of the intendend value of the chain length. The generated binary can run any other value of the chain length, but without any specific optimization. For more information read section [Performance considerations](#performance-considerations).
 
 ## Building manually
 
@@ -44,10 +44,10 @@ To build nchains, run the following
 git clone --recurse https://pisto@bitbucket.org/pisto/nlchains.git
 cd nlchains
 mkdir build
-cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_CUDA_FLAGS="-gencode arch=compute_35,code=sm_35 -gencode arch=compute_60,code=sm_60 -gencode arch=compute_70,code=sm_70" -Doptimized_chain_length=## ..
+cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_CUDA_FLAGS="-gencode arch=compute_35,code=sm_35 -gencode arch=compute_60,code=sm_60 -gencode arch=compute_70,code=sm_70" -Doptimized_chain_length=XX ..
 make -j
 ```
-Please note that the parameter `-Doptimized_chain_length=##` with ## some number greater than 32 is necessary, because some optimized versions of the kernels need to be generated with a compile-time constant of the intendend value of the chain length. The generated binary can run any other value of the chain length, but without any specific optimization. For more information read section [Performance considerations](#performance-considerations).
+Please note that the parameter `-Doptimized_chain_length=XX` with XX some number greater than 32 is necessary, because some optimized versions of the kernels need to be generated with a compile-time constant of the intendend value of the chain length. The generated binary can run any other value of the chain length, but without any specific optimization. For more information read section [Performance considerations](#performance-considerations).
 
 Other relevant CMake flags (`-DFlag=Value`) are listed in the table below.
 
@@ -130,7 +130,7 @@ The command line options `--no_linear_callback` and `--no_nonlinear_callback` ar
 
 Because of a bug in older versions of CMake, the MPI compile flags (`MPI_CXX_COMPILE_OPTIONS`) are not honored. See `CMakeLists.txt` for more details.
 
-Because of a bug in `gcc` version 5.* or 6.*, opening a non-existen file for the initial state, or the mass parameter configuration in the `dDNKG` model may return a rather generic message:
+Because of a bug in `gcc` version 5.\* or 6.\*, opening a non-existen file for the initial state, or the mass parameter configuration in the `dDNKG` model may return a rather generic message:
 ```
 terminate called after throwing an instance of 'std::ios_base::failure'
   what():  basic_ios::clear
