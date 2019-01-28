@@ -62,7 +62,7 @@ parse_cmdline::parse_cmdline(const string &name) : options(name) {
 			("kernel_batching,b", value(&gconf.kernel_batching)->required(), "number of steps per kernel invocation")
 			("steps,s", value(&gconf.steps)->default_value(0), "number of steps in total (0 for infinite)")
 			("time_offset,o", value(&gconf.time_offset)->default_value(0), "time offset in dump files")
-			("entropy,e", value(&gconf.entropy_limit)->default_value(0), "entropy limit")
+			("entropy,e", value(&gconf.entropy_limit), "entropy limit")
 			("WTlimit", "limit WT entropy instead of information entropy")
 			("entropymask", value(&entropymask_filename), "mask of linenergies to include in entropy calculation")
 			("prefix,p", value(&gconf.dump_prefix)->required(), "prefix for dump files")
@@ -86,8 +86,6 @@ void parse_cmdline::operator()(int argc, char *argv[]) try {
 	gconf.shard_copies = gconf.copies_total / mpi_global.size();
 	if (gconf.chain_length < 2 || !gconf.shard_copies || gconf.dt <= 0 || !gconf.kernel_batching)
 		throw invalid_argument("--chain_length must be >= 2, --copies, --dt and --kernel_batching must be positive numbers");
-	if (gconf.entropy_limit < 0)
-		throw invalid_argument("--entropy must be >= 0");
 	if (vm.count("entropy"))
 		gconf.entropy_limit_type = vm.count("WTlimit") ? configuration::WT : configuration::INFORMATION;
 	if (!vm.count("dump_interval")) gconf.dump_interval = gconf.kernel_batching;
