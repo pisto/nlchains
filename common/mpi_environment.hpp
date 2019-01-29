@@ -36,15 +36,14 @@ namespace boost {
 				std::string file_line;
 			};
 
-			virtual const char *what() const noexcept { return msg.c_str(); }
-
 		protected:
 			exception_location(const record &r, int result_code) :
-					exception("<unknown routine>", result_code), msg("@" + r.file_line + ": " + exception::what()) {}
+					exception("<unknown routine>", result_code){
+				message = "@" + r.file_line + ": " + message;
+			}
 
 			friend void operator&&(int result_code, exception_location::record &&p);
 
-			const std::string msg;
 		};
 
 		inline void operator&&(int result_code, exception_location::record &&p) {
