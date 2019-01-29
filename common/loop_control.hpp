@@ -31,11 +31,6 @@ struct loop_control {
 
 	bool break_now();
 
-	~loop_control() {
-		//make sure all MPI calls are matched
-		if (!synched) synch_max();
-	}
-
 private:
 	uint64_t t = gconf.time_offset;
 	std::list<completion> completions;
