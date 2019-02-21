@@ -14,7 +14,7 @@
 
 extern const boost::mpi::environment mpienv;
 extern const boost::mpi::communicator mpi_global;
-extern const int mpi_global_coord, mpi_node_coord;
+extern const int mpi_global_coord, mpi_node_coord, mpi_global_size;
 extern volatile sig_atomic_t quit_requested;
 
 /*

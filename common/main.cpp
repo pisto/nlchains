@@ -25,7 +25,7 @@ const int mpi_global_coord = mpi_global.rank(), mpi_node_coord = [] {
 	 */
 	MPI_Comm_split_type(MPI_COMM_WORLD, MPI_COMM_TYPE_SHARED, 0, MPI_INFO_NULL, &node) && assertmpi;
 	return communicator(node, comm_take_ownership).rank();
-}();
+}(), mpi_global_size = mpi_global.size();
 
 const string process_ident(
 		"MPI rank/hostname/GPU: " + to_string(mpi_global_coord) + "/" + mpienv.processor_name() + "/" +
@@ -81,9 +81,9 @@ void parse_cmdline::operator()(int argc, char *argv[]) try {
 
 	//check user arguments
 	gconf.verbose = vm.count("verbose");
-	if (gconf.copies_total % mpi_global.size())
+	if (gconf.copies_total % mpi_global_size)
 		throw invalid_argument("copies must be a multiple of the number of devices");
-	gconf.shard_copies = gconf.copies_total / mpi_global.size();
+	gconf.shard_copies = gconf.copies_total / mpi_global_size;
 	if (gconf.chain_length < 2 || !gconf.shard_copies || gconf.dt <= 0 || !gconf.kernel_batching)
 		throw invalid_argument("--chain_length must be >= 2, --copies, --dt and --kernel_batching must be positive numbers");
 	if (vm.count("entropy"))
@@ -175,7 +175,7 @@ int main(int argc, char **argv) try {
 		ostringstream info;
 		info << "GPU " << dev_props.name << " (id " << mpi_node_coord << ") on host " << mpienv.processor_name()
 		     << " clocks core/mem " << dev_props.clockRate / 1000 << '/' << dev_props.memoryClockRate / 1000 << endl;
-		loopi(mpi_global.size()) {
+		loopi(mpi_global_size) {
 			if (int(i) == mpi_global_coord) cerr << info.str();
 			mpi_global.barrier();
 		}
