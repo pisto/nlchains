@@ -37,7 +37,7 @@ namespace DNKG_FPUT_Toda {
 				case Toda:
 					parser.options.add_options()
 							("alpha", value(&alpha)->required(),
-									"steepness of exponential, V(dx)=e^(2*alpha*dx)/(4*alpha^2)-dx/(2*alpha)");
+							 "steepness of exponential, V(dx)=e^(2*alpha*dx)/(4*alpha^2)-dx/(2*alpha)");
 					break;
 			}
 			parser.options.add_options()("split_kernel", "force use of split kernel");
@@ -60,7 +60,7 @@ namespace DNKG_FPUT_Toda {
 		results res(m == 0.);
 
 		enum {
-			s_move = 0, s_dump, s_entropy, s_entropy_aux, s_total
+			s_move = 0, s_dump, s_entropy, s_entropy_aux, s_results, s_total
 		};
 		cudaStream_t streams[s_total];
 		memset(streams, 0, sizeof(streams));
@@ -106,18 +106,17 @@ namespace DNKG_FPUT_Toda {
 		auto dumper = [&] {
 			cudaMemcpyAsync(gres.shard_host, gres.shard, gconf.sizeof_shard, cudaMemcpyDeviceToHost, streams[s_dump]) &&
 			assertcu;
-			if (!splitter) completion(streams[s_dump]).blocks(streams[s_move]);
-			add_cuda_callback(streams[s_dump], loop_ctl.callback_err, [&, t = *loop_ctl](cudaError_t status) {
-				if (loop_ctl.callback_err) return;
-				status && assertcu;
-				res.write_shard(t, gres.shard_host);
-			});
+			completion done_copy(streams[s_dump]);
+			if (!splitter) done_copy.blocks(streams[s_move]);
+			done_copy.blocks(streams[s_results]);
 		};
 		destructor(cudaDeviceSynchronize);
 		while (1) {
 			if (splitter) splitter->plane(gres.shard, streams[s_move], streams[s_dump]).blocks(streams[s_entropy]);
-			if (loop_ctl % gconf.dump_interval == 0) dumper();
+			bool full_dump = loop_ctl % gconf.dump_interval == 0;
+			if (full_dump) dumper();
 			//entropy stream is already synced to move or dump stream, that is the readiness of the planar representation
+			cudaMemsetAsync(fft_phi, 0, gconf.sizeof_shard * 2, streams[s_entropy]) && assertcu;
 			completion(streams[s_entropy]).blocks(streams[s_entropy_aux]);
 			//interleave phi and pi with zeroes, since we do a complex FFT
 			cudaMemcpy2DAsync(fft_phi, sizeof(double2), gres.shard, sizeof(double2), sizeof(double),
@@ -128,18 +127,22 @@ namespace DNKG_FPUT_Toda {
 			if (!splitter) completion(streams[s_entropy]).blocks(streams[s_move]);
 			cufftExecZ2Z(fft_plan, fft_phi, fft_phi, CUFFT_FORWARD) && assertcufft;
 			make_linenergies(fft_phi, fft_pi, omega, streams[s_entropy]);
-			//cleanup buffer for next FFT
-			completion(streams[s_entropy]).blocks(streams[s_entropy_aux]);
-			cudaMemsetAsync(fft_phi, 0, gconf.sizeof_shard * 2, streams[s_entropy_aux]) && assertcu;
-			add_cuda_callback(streams[s_entropy], loop_ctl.callback_err, [&, t = *loop_ctl](cudaError_t status) {
-				if (loop_ctl.callback_err) return;
-				status && assertcu;
-				auto entropies = res.entropies(gres.linenergies_host, (0.5 / gconf.shard_copies) / gconf.chain_length);
-				res.check_entropy(entropies);
-				if (t % gconf.dump_interval == 0) res.write_linenergies(t);
-				res.write_entropy(t, entropies);
-			});
-			completion(streams[s_entropy_aux]).blocks(streams[s_entropy]);
+			completion(streams[s_entropy]).blocks(streams[s_results]);
+			add_cuda_callback(streams[s_results], loop_ctl.callback_err,
+			                  [&, full_dump, t = *loop_ctl](cudaError_t status) {
+				                  if (loop_ctl.callback_err) return;
+				                  status && assertcu;
+				                  auto entropies = res.entropies(gres.linenergies_host,
+				                                                 (0.5 / gconf.shard_copies) / gconf.chain_length);
+				                  res.check_entropy(entropies);
+				                  res.write_entropy(t, entropies);
+				                  if (!full_dump) return;
+				                  res.write_linenergies(t);
+				                  res.write_shard(t, gres.shard_host);
+			                  });
+			completion done_results(streams[s_results]);
+			done_results.blocks(streams[s_dump]);
+			done_results.blocks(streams[s_entropy]);
 
 			if (loop_ctl.break_now()) break;
 
@@ -154,6 +157,8 @@ namespace DNKG_FPUT_Toda {
 			dumper();
 			completion(streams[s_entropy]).wait();
 			res.write_linenergies(loop_ctl);
+			completion(streams[s_dump]).wait();
+			res.write_shard(loop_ctl, gres.shard_host);
 		}
 		return 0;
 	}

@@ -41,7 +41,7 @@ namespace dDNKG {
 				ifstream ms(m_fname);
 				ms.exceptions(ios::failbit | ios::badbit | ios::eofbit);
 				ms.read((char *) mp2_host.memptr(), gconf.chain_length * sizeof(double));
-			//XXX see comment on catching ios_base::failure in common/main.cpp
+				//XXX see comment on catching ios_base::failure in common/main.cpp
 			} catch (const ios_base::failure &e) {
 				throw ios::failure("could not read m file ("s + e.what() + ")", e.code());
 			}
@@ -97,7 +97,7 @@ namespace dDNKG {
 		results res(false);
 
 		enum {
-			s_move = 0, s_dump, s_entropy, s_entropy_aux, s_total
+			s_move = 0, s_dump, s_entropy, s_entropy_aux, s_results, s_total
 		};
 		cudaStream_t streams[s_total];
 		memset(streams, 0, sizeof(streams));
@@ -119,16 +119,14 @@ namespace dDNKG {
 			if (split_kernel) splitter.plane(gres.shard, streams[s_move], streams[s_dump]);
 			cudaMemcpyAsync(gres.shard_host, gres.shard, gconf.sizeof_shard, cudaMemcpyDeviceToHost, streams[s_dump]) &&
 			assertcu;
-			if (!split_kernel) completion(streams[s_dump]).blocks(streams[s_move]);
-			add_cuda_callback(streams[s_dump], loop_ctl.callback_err, [&, t = *loop_ctl](cudaError_t status) {
-				if (loop_ctl.callback_err) return;
-				status && assertcu;
-				res.write_shard(t, gres.shard_host);
-			});
+			completion done_copy(streams[s_dump]);
+			if (!split_kernel) done_copy.blocks(streams[s_move]);
+			done_copy.blocks(streams[s_results]);
 		};
 		destructor(cudaDeviceSynchronize);
 		while (1) {
-			if (loop_ctl % gconf.dump_interval == 0) dumper();
+			bool full_dump = loop_ctl % gconf.dump_interval == 0;
+			if (full_dump) dumper();
 			if (!split_kernel) splitter.split(gres.shard, streams[s_move], streams[s_entropy]);
 			completion(streams[s_entropy]).blocks(streams[s_entropy_aux]);
 			double one = 1, zero = 0;
@@ -147,14 +145,21 @@ namespace dDNKG {
 			completion(streams[s_entropy_aux]).blocks(streams[s_entropy]);
 			if (split_kernel) completion(streams[s_entropy]).blocks(streams[s_move]);
 			make_linenergies(projection_phi, projection_pi, streams[s_entropy]);
-			add_cuda_callback(streams[s_entropy], loop_ctl.callback_err, [&, t = *loop_ctl](cudaError_t status) {
-				if (loop_ctl.callback_err) return;
-				status && assertcu;
-				auto entropies = res.entropies(gres.linenergies_host, 0.5 / gconf.shard_copies);
-				res.check_entropy(entropies);
-				if (t % gconf.dump_interval == 0) res.write_linenergies(t);
-				res.write_entropy(t, entropies);
-			});
+			completion(streams[s_entropy]).blocks(streams[s_results]);
+			add_cuda_callback(streams[s_results], loop_ctl.callback_err,
+			                  [&, full_dump, t = *loop_ctl](cudaError_t status) {
+				                  if (loop_ctl.callback_err) return;
+				                  status && assertcu;
+				                  auto entropies = res.entropies(gres.linenergies_host, 0.5 / gconf.shard_copies);
+				                  res.check_entropy(entropies);
+				                  res.write_entropy(t, entropies);
+				                  if (!full_dump) return;
+				                  res.write_linenergies(t);
+				                  res.write_shard(t, gres.shard_host);
+			                  });
+			completion done_results(streams[s_results]);
+			done_results.blocks(streams[s_dump]);
+			done_results.blocks(streams[s_entropy]);
 
 			if (loop_ctl.break_now()) break;
 
@@ -169,6 +174,8 @@ namespace dDNKG {
 			dumper();
 			completion(streams[s_entropy]).wait();
 			res.write_linenergies(loop_ctl);
+			completion(streams[s_dump]).wait();
+			res.write_shard(loop_ctl, gres.shard_host);
 		}
 		return 0;
 	}

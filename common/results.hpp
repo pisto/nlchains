@@ -49,4 +49,5 @@ private:
 	const std::string linenergies_template;
 	std::vector<uint16_t> entropy_modes_indices;
 	std::vector<double> entropy_modes;
+	const boost::mpi::communicator mpi_global_results{ mpi_global, boost::mpi::comm_duplicate };
 };

@@ -52,7 +52,7 @@ namespace DNLS {
 		results res(true);
 
 		enum {
-			s_move = 0, s_cb_linear, s_cb_nonlinear, s_dump, s_entropy, s_total
+			s_move = 0, s_cb_linear, s_cb_nonlinear, s_dump, s_entropy, s_results, s_total
 		};
 		cudaStream_t streams[s_total];
 		memset(streams, 0, sizeof(streams));
@@ -141,26 +141,29 @@ namespace DNLS {
 			cudaMemcpyAsync(gres.shard_host, gres.shard, gconf.sizeof_shard, cudaMemcpyDeviceToHost, streams[s_dump]) &&
 			assertcu;
 			completion(streams[s_dump]).blocks(streams[s_move]);
-			add_cuda_callback(streams[s_dump], loop_ctl.callback_err, [&, t = *loop_ctl](cudaError_t status) {
-				if (loop_ctl.callback_err) return;
-				status && assertcu;
-				res.write_shard(t, gres.shard_host);
-			});
 		};
 		destructor(cudaDeviceSynchronize);
 		while (1) {
-			if (loop_ctl % gconf.dump_interval == 0) dumper();
+			bool full_dump = loop_ctl % gconf.dump_interval == 0;
+			if (full_dump) dumper();
 			cufftExecZ2Z(fft_plain_entropy, gres.shard, psis_k, CUFFT_FORWARD) && assertcufft;
 			completion(streams[s_entropy]).blocks(streams[s_move]);
 			make_linenergies(psis_k, omega, streams[s_entropy]);
-			add_cuda_callback(streams[s_entropy], loop_ctl.callback_err, [&, t = *loop_ctl](cudaError_t status) {
-				if (loop_ctl.callback_err) return;
-				status && assertcu;
-				auto entropies = res.entropies(gres.linenergies_host, 1. / gconf.shard_elements);
-				res.check_entropy(entropies);
-				if (t % gconf.dump_interval == 0) res.write_linenergies(t);
-				res.write_entropy(t, entropies);
-			});
+			completion(streams[s_entropy]).blocks(streams[s_results]);
+			add_cuda_callback(streams[s_entropy], loop_ctl.callback_err,
+			                  [&, full_dump, t = *loop_ctl](cudaError_t status) {
+				                  if (loop_ctl.callback_err) return;
+				                  status && assertcu;
+				                  auto entropies = res.entropies(gres.linenergies_host, 1. / gconf.shard_elements);
+				                  res.check_entropy(entropies);
+				                  res.write_entropy(t, entropies);
+				                  if (!full_dump) return;
+				                  res.write_linenergies(t);
+				                  res.write_shard(t, gres.shard_host);
+			                  });
+			completion done_results(streams[s_results]);
+			done_results.blocks(streams[s_dump]);
+			done_results.blocks(streams[s_entropy]);
 
 			if (loop_ctl.break_now()) break;
 
@@ -191,6 +194,8 @@ namespace DNLS {
 			dumper();
 			completion(streams[s_entropy]).wait();
 			res.write_linenergies(loop_ctl);
+			completion(streams[s_dump]).wait();
+			res.write_shard(loop_ctl, gres.shard_host);
 		}
 		return 0;
 	}

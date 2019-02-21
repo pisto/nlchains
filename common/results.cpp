@@ -37,7 +37,7 @@ void results::write_linenergies(uint64_t t) const {
 void results::write_shard(uint64_t t, const double2 *shard) const {
 	auto dumpname = gconf.dump_prefix + "-";
 	dumpname += to_string(t);
-	if (mpi_global.size() == 1) {
+	if (mpi_global_results.size() == 1) {
 		//avoid requesting a file lock
 		ofstream dump(dumpname);
 		dump.exceptions(ios::eofbit | ios::failbit | ios::badbit);
@@ -45,10 +45,10 @@ void results::write_shard(uint64_t t, const double2 *shard) const {
 		return;
 	}
 	MPI_File dump_mpif;
-	MPI_File_open(MPI_COMM_WORLD, dumpname.c_str(), MPI_MODE_WRONLY | MPI_MODE_CREATE, MPI_INFO_NULL, &dump_mpif) &&
+	MPI_File_open(mpi_global_results, dumpname.c_str(), MPI_MODE_WRONLY | MPI_MODE_CREATE, MPI_INFO_NULL, &dump_mpif) &&
 	assertmpi;
 	destructor([&] { MPI_File_close(&dump_mpif); });
-	MPI_File_set_size(dump_mpif, gconf.sizeof_shard * mpi_global.size()) && assertmpi;
+	MPI_File_set_size(dump_mpif, gconf.sizeof_shard * mpi_global_results.size()) && assertmpi;
 	MPI_File_write_ordered(dump_mpif, shard, gconf.shard_elements * 2, MPI_DOUBLE, MPI_STATUS_IGNORE) && assertmpi;
 }
 

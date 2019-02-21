@@ -13,9 +13,9 @@ using namespace std;
 #endif
 array<double, 2> results::entropies(const double *shard_linenergies, double norm_factor) {
 	//XXX the in-place version always generates an assertion?
-	boost::mpi::all_reduce(mpi_global, shard_linenergies, gconf.chain_length, linenergies.data(), plus<double>());
+	boost::mpi::all_reduce(mpi_global_results, shard_linenergies, gconf.chain_length, linenergies.data(), plus<double>());
 
-	double totale = 0, totalloge = 0, totaleloge = 0, linenergy_normalization = norm_factor / mpi_global.size();
+	double totale = 0, totalloge = 0, totaleloge = 0, linenergy_normalization = norm_factor / mpi_global_results.size();
 	if (a0is0) linenergies[0] = 0;
 	//this helps g++ vectorize the following loops, maybe other compilers as well
 	#if defined(_OPENMP) && _OPENMP >= 201307
