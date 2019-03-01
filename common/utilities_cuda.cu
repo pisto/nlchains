@@ -31,30 +31,32 @@ plane2split::plane2split(uint16_t chainlen, uint16_t shard_copies) :
 	cublasCreate(&handle) && assertcublas;
 }
 
-completion plane2split::split(const double2 *planar, cudaStream_t stream_read, cudaStream_t stream_write) {
+completion plane2split::split(const double2 *planar, cudaStream_t producer, cudaStream_t consumer) {
 	cuDoubleComplex one{1., 0.}, zero{0., 0.};
-	cublasSetStream(handle, stream_read) && assertcublas;
+	completion(producer).blocks(consumer);
+	cublasSetStream(handle, consumer) && assertcublas;
 	cublasZgeam(handle, CUBLAS_OP_T, CUBLAS_OP_N, shard_copies, chainlen, &one, planar, chainlen, &zero, 0,
 	            shard_copies, planar_transposed, shard_copies) && assertcublas;
-	completion(stream_read).blocks(stream_write);
+	completion(consumer).blocks(producer);
 	static auto kinfo = make_kernel_info(split_kernel);
 	auto linear_config = kinfo.linear_configuration(elements, gconf.verbose);
-	split_kernel <<< linear_config.x, linear_config.y, 0, stream_write >>>
+	split_kernel <<< linear_config.x, linear_config.y, 0, consumer >>>
 	                                                      (elements, planar_transposed, real_transposed, img_transposed);
 	cudaGetLastError() && assertcu;
-	return completion(stream_write);
+	return completion(consumer);
 }
 
-completion plane2split::plane(double2 *planar, cudaStream_t stream_read, cudaStream_t stream_write) const {
+completion plane2split::plane(double2 *planar, cudaStream_t producer, cudaStream_t consumer) const {
 	static auto kinfo = make_kernel_info(unsplit_kernel);
 	auto linear_config = kinfo.linear_configuration(elements, gconf.verbose);
-	unsplit_kernel <<< linear_config.x, linear_config.y, 0, stream_read >>>
+	completion(producer).blocks(consumer);
+	unsplit_kernel <<< linear_config.x, linear_config.y, 0, consumer >>>
 	                                                        (elements, real_transposed, img_transposed, planar_transposed);
 	cudaGetLastError() && assertcu;
-	completion(stream_read).blocks(stream_write);
+	completion(consumer).blocks(producer);
 	cuDoubleComplex one{1., 0.}, zero{0., 0.};
-	cublasSetStream(handle, stream_write) && assertcublas;
+	cublasSetStream(handle, consumer) && assertcublas;
 	cublasZgeam(handle, CUBLAS_OP_T, CUBLAS_OP_N, chainlen, shard_copies, &one, planar_transposed, shard_copies, &zero,
 	            0, chainlen, planar, chainlen) && assertcublas;
-	return completion(stream_write);
+	return completion(consumer);
 }

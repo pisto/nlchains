@@ -431,11 +431,11 @@ struct plane2split {
 	 * synchronizes to the second.
 	 */
 
-	completion split(const double2 *planar, cudaStream_t stream_read, cudaStream_t stream_write);
+	completion split(const double2 *planar, cudaStream_t producer, cudaStream_t consumer);
 
 	completion split(const double2 *planar, cudaStream_t stream = 0) { return split(planar, stream, stream); }
 
-	completion plane(double2 *planar, cudaStream_t stream_read, cudaStream_t stream_write) const;
+	completion plane(double2 *planar, cudaStream_t producer, cudaStream_t consumer) const;
 
 	completion plane(double2 *planar, cudaStream_t stream = 0) const { return plane(planar, stream, stream); }
 
