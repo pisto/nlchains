@@ -51,3 +51,19 @@ struct ginit_helper {
 
 #define ginit_helper_macro_2(l) static ginit_helper ginit_ ## l __attribute__((used))
 #define ginit_helper_macro_1(l) ginit_helper_macro_2(l)
+
+/*
+ * CPP test flags for SIMD
+ */
+
+#if defined(_OPENMP) && _OPENMP >= 201307
+#define openmp_simd _Pragma("omp simd")
+#else
+#define openmp_simd
+#endif
+
+#if defined(__GNUC__) && __GNUC__ >= 6
+#define make_simd_clones(x) [[gnu::target_clones(x)]]
+#else
+#define make_simd_clones(x)
+#endif
