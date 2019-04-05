@@ -165,8 +165,9 @@ namespace DNKG_FPUT_Toda {
 }
 
 ginit = [] {
+	using namespace DNKG_FPUT_Toda;
 	auto &programs = ::programs();
-	programs["DNKG"] = DNKG_FPUT_Toda::main<DNKG_FPUT_Toda::DNKG>;
-	programs["FPUT"] = DNKG_FPUT_Toda::main<DNKG_FPUT_Toda::FPUT>;
-	programs["Toda"] = DNKG_FPUT_Toda::main<DNKG_FPUT_Toda::Toda>;
+	programs["DNKG"] = main<DNKG>;
+	programs["FPUT"] = main<FPUT>;
+	programs["Toda"] = main<Toda>;
 };

@@ -8,9 +8,7 @@ using namespace std;
  * speed this up by using automatic SIMD vectorization targeted to different instruction sets (with function multiversioning).
  */
 
-#if defined(__GNUC__) && __GNUC__ >= 6
-[[gnu::target_clones("default,avx,avx512f")]]
-#endif
+make_simd_clones("default,avx,avx512f")
 array<double, 2> results::entropies(const double *shard_linenergies, double norm_factor) {
 	//XXX the in-place version always generates an assertion?
 	boost::mpi::all_reduce(mpi_global_results, shard_linenergies, gconf.chain_length, linenergies.data(), plus<double>());
@@ -18,9 +16,7 @@ array<double, 2> results::entropies(const double *shard_linenergies, double norm
 	double totale = 0, totalloge = 0, totaleloge = 0, linenergy_normalization = norm_factor / mpi_global_size;
 	if (a0is0) linenergies[0] = 0;
 	//this helps g++ vectorize the following loops, maybe other compilers as well
-	#if defined(_OPENMP) && _OPENMP >= 201307
-	#pragma omp simd
-	#endif
+	openmp_simd
 	for (uint16_t i = 0; i < gconf.chain_length; i++) linenergies[i] *= linenergy_normalization;
 	double *modes;
 	uint16_t modes_tot;
@@ -33,9 +29,7 @@ array<double, 2> results::entropies(const double *shard_linenergies, double norm
 		modes = entropy_modes.data();
 		modes_tot = entropy_modes.size();
 	}
-	#if defined(_OPENMP) && _OPENMP >= 201307
-	#pragma omp simd
-	#endif
+	openmp_simd
 	for (uint16_t i = 0; i < modes_tot; i++) {
 		auto e = modes[i];
 		totale += e;
