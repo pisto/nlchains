@@ -44,6 +44,7 @@ To build nchains, run the following
 git clone --recurse https://pisto@bitbucket.org/pisto/nlchains.git
 cd nlchains
 mkdir build
+cd build
 cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_CUDA_FLAGS="-gencode arch=compute_35,code=sm_35 -gencode arch=compute_60,code=sm_60 -gencode arch=compute_70,code=sm_70" -Doptimized_chain_length=XX ..
 make -j
 ```
