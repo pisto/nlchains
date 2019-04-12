@@ -41,11 +41,7 @@ namespace DNLS {
 		}
 		auto ctx = cuda_ctx.activate(mpi_node_coord);
 
-		vector<double> omega_host(gconf.chain_length);
-		loopk(gconf.chain_length) {
-			auto s2 = 2 * sin(k * M_PI / gconf.chain_length);
-			omega_host[k] = s2 * s2;
-		}
+		auto omega_host = dispersion();
 		cudalist<double> omega(gconf.chain_length);
 		cudaMemcpy(omega, omega_host.data(), gconf.chain_length * sizeof(double), cudaMemcpyHostToDevice) && assertcu;
 
@@ -65,16 +61,8 @@ namespace DNLS {
 		 * the symplectic integration steps.
 		 */
 		cudalist<cufftDoubleComplex> evolve_linear_tables_all(7 * gconf.chain_length);
-		{
-			boost::multi_array<complex<double>, 2> evolve_linear_table_host(boost::extents[7][gconf.chain_length]);
-			auto normalization = 1. / gconf.chain_length;
-			complex<double> complexdt = -1i * gconf.dt;
-			loopi(7) loopj(gconf.chain_length) evolve_linear_table_host[i][j] =
-					                                   exp(complexdt * symplectic_d[i] * omega_host[j]) *
-					                                   normalization;
-			cudaMemcpy(evolve_linear_tables_all, evolve_linear_table_host.origin(),
-			           7 * gconf.chain_length * sizeof(cufftDoubleComplex), cudaMemcpyHostToDevice) && assertcu;
-		}
+		cudaMemcpy(evolve_linear_tables_all, evolve_linear_table().origin(),
+		           7 * gconf.chain_length * sizeof(cufftDoubleComplex), cudaMemcpyHostToDevice) && assertcu;
 
 		/*
 		 * Three FFT plans are required because of the nonlinear/linear evolution callbacks. The plain fft plan is used

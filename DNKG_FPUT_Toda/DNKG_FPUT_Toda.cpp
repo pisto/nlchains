@@ -47,16 +47,7 @@ namespace DNKG_FPUT_Toda {
 		auto ctx = cuda_ctx.activate(mpi_node_coord);
 
 		cudalist<double> omega(gconf.chain_length);
-		{
-			vector<double> omega_host(gconf.chain_length);
-			for (int k = 0; k <= int(gconf.chain_length) / 2; k++) {
-				auto s2 = 2 * sin(k * M_PI / gconf.chain_length);
-				omega_host[k] = sqrt(m + s2 * s2);
-			}
-			for (int k = -1; k >= -int(gconf.chain_length - 1) / 2; k--)
-				omega_host[gconf.chain_length + k] = omega_host[-k];
-			cudaMemcpy(omega, omega_host.data(), gconf.sizeof_linenergies, cudaMemcpyHostToDevice) && assertcu;
-		}
+		cudaMemcpy(omega, dispersion(m).data(), gconf.sizeof_linenergies, cudaMemcpyHostToDevice) && assertcu;
 
 		results res(m == 0.);
 

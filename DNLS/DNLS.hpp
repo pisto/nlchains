@@ -1,11 +1,17 @@
 #pragma once
 
-#include <cuda_runtime.h>
+#include <vector>
+#include <complex>
+#include <boost/multi_array.hpp>
 #include <cufft.h>
 #include <cufftXt.h>
 #include "../common/utilities_cuda.cuh"
 
 namespace DNLS {
+
+	std::vector<double> dispersion();
+
+	boost::multi_array<std::complex<double>, 2> evolve_linear_table();
 
 	completion evolve_nonlinear(double beta_dt_symplectic, cudaStream_t stream);
 

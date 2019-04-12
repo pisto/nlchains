@@ -70,9 +70,9 @@ set_source_files_properties(DNKG_FPUT_Toda/DNKG_FPUT_Toda.cu dDNKG/dDNKG.cu PROP
 #link/build flags
 add_executable(nlchains
         common/main.cpp common/results.cpp common/utilities_cuda.cu common/utilities_cuda.cpp common/results_entropy.cpp
-        DNKG_FPUT_Toda/DNKG_FPUT_Toda.cpp DNKG_FPUT_Toda/DNKG_FPUT_Toda.cu
-        dDNKG/dDNKG.cpp dDNKG/dDNKG.cu
-        DNLS/DNLS.cpp DNLS/DNLS.cu)
+        DNKG_FPUT_Toda/DNKG_FPUT_Toda.cpp DNKG_FPUT_Toda/DNKG_FPUT_Toda.cu DNKG_FPUT_Toda/dispersion.cpp
+        dDNKG/eigensystem.cpp dDNKG/dDNKG.cpp dDNKG/dDNKG.cu
+        DNLS/DNLS.cpp DNLS/DNLS.cu DNLS/dispersion.cpp)
 
 set_property(TARGET nlchains PROPERTY CUDA_SEPARABLE_COMPILATION ON)
 #XXX workaround for bad CMake support for device link libraries, see https://gitlab.kitware.com/cmake/cmake/issues/18599 https://gitlab.kitware.com/cmake/cmake/issues/18614

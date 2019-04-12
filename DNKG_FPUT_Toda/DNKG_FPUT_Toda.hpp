@@ -1,13 +1,18 @@
 #pragma once
 
 #include <cstdint>
+#include <vector>
 #include <cuda_runtime.h>
 #include "../common/utilities_cuda.cuh"
 
 namespace DNKG_FPUT_Toda {
+
 	enum Model {
 		DNKG = 0, FPUT, Toda
 	};
+
+	std::vector<double> dispersion(double m);
+
 	extern __constant__ double dt_c[8], dt_d[8], m, alpha, beta;
 	extern __constant__ double alpha2, alpha2_inv;
 

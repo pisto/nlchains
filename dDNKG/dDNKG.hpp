@@ -1,9 +1,11 @@
 #pragma once
 
-#include <cuda_runtime.h>
+#include <armadillo>
 #include "../common/utilities_cuda.cuh"
 
 namespace dDNKG {
+
+	void eigensystem(const arma::vec &mp2, arma::mat &eigenvectors, arma::vec &omegas);
 
 	extern __constant__ double dt_c[8], dt_d[8], mp2[2048], beta;
 

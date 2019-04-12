@@ -1,6 +1,5 @@
 #include <iostream>
 #include <fstream>
-#include <armadillo>
 #include "../common/utilities.hpp"
 #include "../common/configuration.hpp"
 #include "../common/results.hpp"
@@ -55,29 +54,15 @@ namespace dDNKG {
 				projection_phi(2 * size_t(gconf.shard_copies) * gconf.chain_length);
 		auto projection_pi = &projection_phi[size_t(gconf.shard_copies) * gconf.chain_length];
 		{
+			arma::mat eigenvectors_host;
+			arma::vec omegas;
+			eigensystem(mp2_host, eigenvectors_host, omegas);
 			auto vecsize = gconf.chain_length * sizeof(double), matsize =
 					size_t(gconf.chain_length) * gconf.chain_length * sizeof(double);
 			cudaMemcpy(mp2, mp2_host.memptr(), vecsize, cudaMemcpyHostToDevice) && assertcu;
 			cudaMemcpy(get_device_address(dDNKG::mp2), mp2, min(sizeof(dDNKG::mp2), vecsize),
 			           cudaMemcpyDeviceToDevice) && assertcu;
 
-			arma::mat interaction = diagmat(mp2_host), eigenvectors_host;
-			interaction.diag(1).fill(-1);
-			interaction.diag(-1).fill(-1);
-			interaction(0, gconf.chain_length - 1) = interaction(gconf.chain_length - 1, 0) = -1;
-			arma::vec omegas;
-			if (!arma::eig_sym(omegas, eigenvectors_host, interaction))
-				throw runtime_error("Cannot calculate eigensystem!");
-			omegas = sqrt(omegas);
-
-			if (!mpi_global_coord) {
-				ofstream dump_eigensystem(gconf.dump_prefix + "-omegas");
-				dump_eigensystem.exceptions(ios::failbit | ios::badbit | ios::eofbit);
-				dump_eigensystem.write((char *) omegas.memptr(), vecsize);
-				dump_eigensystem.close();
-				dump_eigensystem.open(gconf.dump_prefix + "-eigenvectors");
-				dump_eigensystem.write((char *) eigenvectors_host.memptr(), matsize);
-			}
 			cudaMemcpy(eigenvectors, eigenvectors_host.memptr(), matsize, cudaMemcpyHostToDevice) && assertcu;
 			loopi(gconf.chain_length) eigenvectors_host.col(i) *= omegas[i];
 			cudaMemcpy(eigenvectors_times_omega, eigenvectors_host.memptr(), matsize, cudaMemcpyHostToDevice) &&
