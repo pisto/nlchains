@@ -41,7 +41,7 @@ completion plane2split::split(const double2 *planar, cudaStream_t producer, cuda
 	static auto kinfo = make_kernel_info(split_kernel);
 	auto linear_config = kinfo.linear_configuration(elements, gconf.verbose);
 	split_kernel <<< linear_config.x, linear_config.y, 0, consumer >>>
-	                                                      (elements, planar_transposed, real_transposed, img_transposed);
+	             (elements, planar_transposed, real_transposed, img_transposed);
 	cudaGetLastError() && assertcu;
 	return completion(consumer);
 }
@@ -51,7 +51,7 @@ completion plane2split::plane(double2 *planar, cudaStream_t producer, cudaStream
 	auto linear_config = kinfo.linear_configuration(elements, gconf.verbose);
 	completion(producer).blocks(consumer);
 	unsplit_kernel <<< linear_config.x, linear_config.y, 0, consumer >>>
-	                                                        (elements, real_transposed, img_transposed, planar_transposed);
+	               (elements, real_transposed, img_transposed, planar_transposed);
 	cudaGetLastError() && assertcu;
 	completion(consumer).blocks(producer);
 	cuDoubleComplex one{1., 0.}, zero{0., 0.};

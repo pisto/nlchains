@@ -202,22 +202,21 @@ namespace dDNKG {
 			static auto kinfo = make_kernel_info(move_split);
 			auto linear_config = kinfo.linear_configuration(gconf.shard_copies, gconf.verbose);
 			static auto mp2_const_ptr = (const double *) get_device_address(mp2);
+			auto mp2_ptr = gconf.chain_length <= sizeof(mp2) / sizeof(double) ? mp2_const_ptr : mp2_gmem;
 			kinfo.k <<< linear_config.x, linear_config.y, 0, stream >>>
-			                                                 (splitter.real_transposed, splitter.img_transposed,
-					                                                 gconf.chain_length <= sizeof(mp2) / sizeof(double)
-					                                                 ? mp2_const_ptr : mp2_gmem,
-					                                                 gconf.chain_length, gconf.shard_copies, gconf.kernel_batching);
+			        (splitter.real_transposed, splitter.img_transposed, mp2_ptr, gconf.chain_length, gconf.shard_copies,
+			         gconf.kernel_batching);
 		} else {
 			if (gconf.chain_length < 32) {
 				auto &kinfo = thread_kernel_resolver<>::get(gconf.chain_length);
 				auto linear_config = kinfo.linear_configuration(gconf.shard_copies, gconf.verbose);
 				kinfo.k <<< linear_config.x, linear_config.y, 0, stream >>>
-				                                                 (gres.shard, gconf.kernel_batching, gconf.shard_copies);
+				        (gres.shard, gconf.kernel_batching, gconf.shard_copies);
 			} else if (gconf.chain_length == optimized_chain_length) {
 				static auto kinfo = make_kernel_info(move_chain_in_warp);
 				auto linear_config = kinfo.linear_configuration(uint32_t(gconf.shard_copies) * 32, gconf.verbose);
 				kinfo.k <<< linear_config.x, linear_config.y, 0, stream >>>
-				                                                 (gres.shard, mp2_gmem, gconf.kernel_batching, gconf.shard_copies);
+				        (gres.shard, mp2_gmem, gconf.kernel_batching, gconf.shard_copies);
 			} else {
 				static bool warned = false;
 				if (!warned && gconf.chain_length < 2048) {
@@ -261,7 +260,7 @@ namespace dDNKG {
 		static auto kinfo = make_kernel_info(make_linenergies_kernel);
 		auto linear_config = kinfo.linear_configuration(uint32_t(gconf.chain_length) * 32, gconf.verbose);
 		kinfo.k <<< linear_config.x, linear_config.y, 0, stream >>>
-		                                                 (projection_phi, projection_pi, gconf.chain_length, gconf.shard_copies, gres.linenergies_host);
+		        (projection_phi, projection_pi, gconf.chain_length, gconf.shard_copies, gres.linenergies_host);
 		cudaGetLastError() && assertcu;
 		return completion(stream);
 	}

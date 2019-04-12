@@ -260,20 +260,21 @@ namespace DNKG_FPUT_Toda {
 			                                          std::string("move_split<") + std::to_string(int(model)) + ">");
 			auto linear_config = kinfo.linear_configuration(gconf.shard_copies, gconf.verbose);
 			kinfo.k <<< linear_config.x, linear_config.y, 0, stream >>>
-			                                                 (splitter->real_transposed, splitter->img_transposed, gconf.chain_length, gconf.shard_copies, gconf.kernel_batching);
+			        (splitter->real_transposed, splitter->img_transposed, gconf.chain_length, gconf.shard_copies,
+			         gconf.kernel_batching);
 		} else {
 			if (gconf.chain_length < 32) {
 				auto &kinfo = thread_kernel_resolver<model>::get(gconf.chain_length);
 				auto linear_config = kinfo.linear_configuration(gconf.shard_copies, gconf.verbose);
 				kinfo.k <<< linear_config.x, linear_config.y, 0, stream >>>
-				                                                 (gres.shard, gconf.kernel_batching, gconf.shard_copies);
+				        (gres.shard, gconf.kernel_batching, gconf.shard_copies);
 			} else if (gconf.chain_length == optimized_chain_length) {
 				static auto kinfo = make_kernel_info_name(move_chain_in_warp<model>,
 				                                          std::string("move_chain_in_warp<") +
 				                                          std::to_string(int(model)) + ">");
 				auto linear_config = kinfo.linear_configuration(uint32_t(gconf.shard_copies) * 32, gconf.verbose);
 				kinfo.k <<< linear_config.x, linear_config.y, 0, stream >>>
-				                                                 (gres.shard, gconf.kernel_batching, gconf.shard_copies);
+				        (gres.shard, gconf.kernel_batching, gconf.shard_copies);
 			} else {
 				static bool warned = false;
 				if (!warned && gconf.chain_length < 2048) {
@@ -321,7 +322,7 @@ namespace DNKG_FPUT_Toda {
 		static auto kinfo = make_kernel_info(make_linenergies_kernel);
 		auto linear_config = kinfo.linear_configuration(gconf.chain_length, gconf.verbose);
 		kinfo.k <<< linear_config.x, linear_config.y, 0, stream >>>
-		                                                 (gconf.chain_length, gconf.shard_copies, gres.linenergies_host, fft_phis, fft_pis, omegas);
+		        (gconf.chain_length, gconf.shard_copies, gres.linenergies_host, fft_phis, fft_pis, omegas);
 		cudaGetLastError() && assertcu;
 		return completion(stream);
 	}
