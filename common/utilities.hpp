@@ -67,3 +67,25 @@ struct ginit_helper {
 #else
 #define make_simd_clones(x)
 #endif
+
+/*
+ * Collect writes to an std::ostream and flush them all together. Useful when sending output
+ * to stdout/stderr in parallel program where writes should be "atomic".
+ */
+
+#include <sstream>
+#include <iostream>
+
+struct collect_ostream : std::ostringstream {
+	std::ostream &out;
+
+	collect_ostream(std::ostream &out) : out(out) {}
+
+	~collect_ostream() { out << str(); }
+
+	template<typename T>
+	collect_ostream &operator<<(T &&t) const {
+		return const_cast<collect_ostream &>(*this) << std::forward<T>(t);
+	}
+
+};
