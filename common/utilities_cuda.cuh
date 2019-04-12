@@ -358,6 +358,35 @@ void add_cuda_callback(cudaStream_t stream, std::exception_ptr &callback_err, L 
 }
 
 /*
+ * CUDA resource RAII. Notes that it also modifies global gres to use GPU buffers.
+ */
+
+extern struct cuda_ctx_t {
+	int id = -1;
+	cudaDeviceProp dev_props;
+
+	struct cuda_ctx_raii {
+		cuda_ctx_raii(cuda_ctx_raii &&o) { o.active = false; }
+
+		void operator=(cuda_ctx_raii &&o) { o.active = false; };
+
+		~cuda_ctx_raii();
+
+	private:
+		friend struct cuda_ctx_t;
+		bool active = true;
+
+		cuda_ctx_raii() = default;
+
+	};
+
+	cuda_ctx_raii activate(int id);
+
+private:
+	cudalist<double2> shard;
+} cuda_ctx;
+
+/*
  * Helper class to print runtime optimization hints about kernels.
  * Use as
  *      static auto your_kernel_info = make_kernel_info(your_kernel);
@@ -371,48 +400,30 @@ void add_cuda_callback(cudaStream_t stream, std::exception_ptr &callback_err, L 
 #include <iostream>
 #include <sstream>
 
-template<typename Kernel>
-struct kernel_info {
-	int device;
-	cudaDeviceProp device_props;
-	Kernel k = nullptr;
+struct kernel_info_base {
 	std::string kname;
 	cudaFuncAttributes kernel_attrs;
 
-	kernel_info() = default;
+	int2 linear_configuration(size_t elements) const;
 
-	kernel_info(Kernel k, const std::string &kname) : k(k), kname(kname) {
-		cudaGetDevice(&device) && assertcu;
-		cudaGetDeviceProperties(&device_props, device) && assertcu;
+private:
+	template<typename Kernel> friend
+	struct kernel_info;
+	mutable bool printed_info;
+	const void *k;
+
+	kernel_info_base(const void *k, std::string kname) : k(k), kname(std::move(kname)) {
 		cudaFuncGetAttributes(&kernel_attrs, k) && assertcu;
 	}
 
-	//some heuristic
-	int2 linear_configuration(size_t elements, bool print) const {
-		int cudaOccupancyMaxPotentialBlockSize_void(void *kern, int maxblock);
-		static_assert(sizeof(k) == sizeof(void *), "CUDA kernels are not pointers!");
-		int last_grid_size, block_size;
-		//all device have max threads = 2048, CC > 3 can have 64 resident blocks instead of 32
-		for (int max_block_size = device_props.major > 3 ? 64 : 128; max_block_size; max_block_size -= 32) {
-			block_size = cudaOccupancyMaxPotentialBlockSize_void((void *) k, max_block_size);
-			last_grid_size = elements / block_size;
-			if (last_grid_size >= device_props.multiProcessorCount) break;
-		}
-		last_grid_size += !!(elements % block_size);
-		if (print && last_elements_print != elements) {
-			std::ostringstream buff;
-			buff << "Kernel \"" << kname << "\" on device " << device_props.name << " (" << device << "):" << std::endl
-			     << '\t' << kernel_attrs.numRegs << " regs" << std::endl
-			     << '\t' << kernel_attrs.localSizeBytes << " lmem" << std::endl
-			     << '\t' << block_size << " linear block size" << std::endl;
-			std::cerr << buff.str();
-			last_elements_print = elements;
-		}
-		return int2{last_grid_size, block_size};
-	}
+};
 
-private:
-	mutable size_t last_elements_print = 0;
+template<typename Kernel>
+struct kernel_info : kernel_info_base {
+	Kernel k;
+	static_assert(sizeof(k) == sizeof(void *), "CUDA kernels are not pointers!");
+
+	kernel_info(Kernel k, const std::string &kname) : kernel_info_base((const void *)k, kname), k(k) {}
 };
 
 /*

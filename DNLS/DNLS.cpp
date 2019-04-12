@@ -39,6 +39,7 @@ namespace DNLS {
 			no_linear_callback = parser.vm.count("no_linear_callback");
 			no_nonlinear_callback = parser.vm.count("no_nonlinear_callback");
 		}
+		auto ctx = cuda_ctx.activate(mpi_node_coord);
 
 		vector<double> omega_host(gconf.chain_length);
 		loopk(gconf.chain_length) {
@@ -136,7 +137,7 @@ namespace DNLS {
 			if (!no_nonlinear_callback) cufftSetWorkArea(fft_elvolve_psi, area) && assertcufft;
 		}
 
-		loop_control loop_ctl(streams[s_move]);
+		loop_control_gpu loop_ctl(gconf.time_offset, streams[s_move]);
 		auto dumper = [&] {
 			cudaMemcpyAsync(gres.shard_host, gres.shard, gconf.sizeof_shard, cudaMemcpyDeviceToHost, streams[s_dump]) &&
 			assertcu;

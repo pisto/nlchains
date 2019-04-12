@@ -47,6 +47,7 @@ namespace dDNKG {
 			}
 			mp2_host += 2;
 		}
+		auto ctx = cuda_ctx.activate(mpi_node_coord);
 
 		cudalist<double> mp2(gconf.chain_length),
 				eigenvectors(size_t(gconf.chain_length) * gconf.chain_length),
@@ -114,7 +115,7 @@ namespace dDNKG {
 		plane2split splitter(gconf.chain_length, gconf.shard_copies);
 		splitter.split(gres.shard, streams[s_move]);
 
-		loop_control loop_ctl(streams[s_move]);
+		loop_control_gpu loop_ctl(gconf.time_offset, streams[s_move]);
 		auto dumper = [&] {
 			if (split_kernel) splitter.plane(gres.shard, streams[s_move], streams[s_dump]);
 			cudaMemcpyAsync(gres.shard_host, gres.shard, gconf.sizeof_shard, cudaMemcpyDeviceToHost, streams[s_dump]) &&

@@ -27,10 +27,10 @@ const int mpi_global_coord = mpi_global.rank(), mpi_node_coord = [] {
 }(), mpi_global_size = mpi_global.size();
 
 const string process_ident(
-		"MPI rank/hostname/GPU: " + to_string(mpi_global_coord) + "/" + mpienv.processor_name() + "/" +
+		"MPI rank/hostname/node_id: " + to_string(mpi_global_coord) + "/" + mpienv.processor_name() + "/" +
 		to_string(mpi_node_coord));
 
-map<std::string, function<int(int argc, char *argv[])>> &programs() {
+map<string, function<int(int argc, char *argv[])>> &programs() {
 	static map<string, function<int(int argc, char *argv[])>> progs;
 	return progs;
 };
@@ -100,19 +100,20 @@ void parse_cmdline::operator()(int argc, char *argv[]) try {
 
 	gconf.sizeof_linenergies = sizeof(double) * gconf.chain_length;
 	if (uint64_t(gconf.chain_length) * gconf.shard_copies >= 0x40000000ULL)
-		throw invalid_argument("(--chain_length * --copies) / total_GPUs must be <= 2^30");
+		throw invalid_argument("(--chain_length * --copies) / mpi_processes must be <= 2^30");
 	gconf.shard_elements = uint32_t(gconf.chain_length) * gconf.shard_copies;
 	gconf.sizeof_shard = sizeof(double2) * gconf.shard_elements;
-	gres.shard = cudalist<double2>(gconf.shard_elements);
-	gres.shard_host = cudalist<double2, true>(gconf.shard_elements, false);
-	gres.linenergies_host = cudalist<double, true>(gconf.chain_length, false);
+	gres.shard_cpu.resize(gconf.shard_elements);
+	gres.shard = gres.shard_host = gres.shard_cpu.data();
+	gres.linenergies_cpu.resize(gconf.chain_length);
+	gres.linenergies_host = gres.linenergies_cpu.data();
 	memset(gres.linenergies_host, 0, sizeof(double) * gconf.chain_length);
 	//XXX catching ios_base::failure does not work with gcc 5/6, see https://gcc.gnu.org/bugzilla/show_bug.cgi?id=66145
 	//working around it would be difficult and ugly, let's just hope software stacks move on.
 	try {
 		ifstream initial_state(initial_filename);
 		initial_state.exceptions(ios::failbit | ios::badbit | ios::eofbit);
-		initial_state.seekg(gconf.sizeof_shard * mpi_global_coord).read((char *) *gres.shard_host, gconf.sizeof_shard);
+		initial_state.seekg(gconf.sizeof_shard * mpi_global_coord).read((char *) gres.shard_host, gconf.sizeof_shard);
 	} catch (const ios_base::failure &e) {
 		throw ios_base::failure("could not read initial state ("s + e.what() + ")", e.code());
 	}
@@ -128,7 +129,6 @@ void parse_cmdline::operator()(int argc, char *argv[]) try {
 		} catch (const ios_base::failure &e) {
 			throw ios_base::failure("could not read entropy mask file ("s + e.what() + ")", e.code());
 		}
-	cudaMemcpy(gres.shard, gres.shard_host, gconf.sizeof_shard, cudaMemcpyHostToDevice) && assertcu;
 
 } catch (const invalid_argument &e) {
 	ostringstream fmtmsg;
@@ -159,24 +159,6 @@ int main(int argc, char **argv) try {
 	}
 	auto program = programs().find(argv[1]);
 	if (program == programs().end()) throw invalid_argument("please specific a valid program among " + program_names);
-
-	cudaSetDevice(mpi_node_coord) && assertcu;
-	destructor([] {
-		destructor(cudaDeviceSynchronize);
-		gres = resources();     //reset resources
-		cudaDeviceReset();
-	});
-	{
-		cudaDeviceProp dev_props;
-		cudaGetDeviceProperties(&dev_props, mpi_node_coord) && assertcu;
-		ostringstream info;
-		info << "GPU " << dev_props.name << " (id " << mpi_node_coord << ") on host " << mpienv.processor_name()
-		     << " clocks core/mem " << dev_props.clockRate / 1000 << '/' << dev_props.memoryClockRate / 1000 << endl;
-		loopi(mpi_global_size) {
-			if (int(i) == mpi_global_coord) cerr << info.str();
-			mpi_global.barrier();
-		}
-	}
 
 	return program->second(argc - 1, argv + 1);
 

@@ -61,10 +61,18 @@ struct parse_cmdline {
 	};
 };
 
-#include "utilities_cuda.cuh"
+#include <boost/align/aligned_allocator.hpp>
+#include <boost/align/assume_aligned.hpp>
+//for double2
+#include <vector_types.h>
+
+template<typename T> using simd_allocator = boost::alignment::aligned_allocator<T, 64>;
 
 extern struct resources {
-	cudalist<double2> shard;
-	cudalist<double2, true> shard_host;
-	cudalist<double, true> linenergies_host;
+	double2 *shard = 0, *shard_host = 0;
+	double *linenergies_host = 0;
+private:
+	std::vector<double2> shard_cpu;
+	std::vector<double, simd_allocator<double>> linenergies_cpu;
+	friend struct parse_cmdline;
 } gres;

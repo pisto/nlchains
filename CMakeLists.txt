@@ -69,7 +69,7 @@ set_source_files_properties(DNKG_FPUT_Toda/DNKG_FPUT_Toda.cu dDNKG/dDNKG.cu PROP
 
 #link/build flags
 add_executable(nlchains
-        common/main.cpp common/results.cpp common/utilities_cuda.cu common/results_entropy.cpp common/loop_control.cpp
+        common/main.cpp common/results.cpp common/utilities_cuda.cu common/utilities_cuda.cpp common/results_entropy.cpp
         DNKG_FPUT_Toda/DNKG_FPUT_Toda.cpp DNKG_FPUT_Toda/DNKG_FPUT_Toda.cu
         dDNKG/dDNKG.cpp dDNKG/dDNKG.cu
         DNLS/DNLS.cpp DNLS/DNLS.cu)

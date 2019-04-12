@@ -1,10 +1,10 @@
 #include "utilities_cuda.cuh"
 #include "configuration.hpp"
 
-int cudaOccupancyMaxPotentialBlockSize_void(void *kern, int maxblock) {
-	int blocks, threads;
-	cudaOccupancyMaxPotentialBlockSize(&blocks, &threads, kern, 0, maxblock) && assertcu;
-	return threads;
+cudaError cudaOccupancyMaxPotentialBlockSize(int *minGridSize, int *blockSize, const void *func, size_t dynamicSMemSize,
+                                             int blockSizeLimit) {
+	return cudaOccupancyMaxPotentialBlockSize <const void *>(minGridSize, blockSize, func, dynamicSMemSize,
+															 blockSizeLimit);
 }
 
 __global__ void split_kernel(uint32_t elements, const double2 *planar, double *real, double *img) {
@@ -39,7 +39,7 @@ completion plane2split::split(const double2 *planar, cudaStream_t producer, cuda
 	            shard_copies, planar_transposed, shard_copies) && assertcublas;
 	completion(consumer).blocks(producer);
 	static auto kinfo = make_kernel_info(split_kernel);
-	auto linear_config = kinfo.linear_configuration(elements, gconf.verbose);
+	auto linear_config = kinfo.linear_configuration(elements);
 	split_kernel <<< linear_config.x, linear_config.y, 0, consumer >>>
 	             (elements, planar_transposed, real_transposed, img_transposed);
 	cudaGetLastError() && assertcu;
@@ -48,7 +48,7 @@ completion plane2split::split(const double2 *planar, cudaStream_t producer, cuda
 
 completion plane2split::plane(double2 *planar, cudaStream_t producer, cudaStream_t consumer) const {
 	static auto kinfo = make_kernel_info(unsplit_kernel);
-	auto linear_config = kinfo.linear_configuration(elements, gconf.verbose);
+	auto linear_config = kinfo.linear_configuration(elements);
 	completion(producer).blocks(consumer);
 	unsplit_kernel <<< linear_config.x, linear_config.y, 0, consumer >>>
 	               (elements, real_transposed, img_transposed, planar_transposed);

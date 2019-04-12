@@ -44,6 +44,7 @@ namespace DNKG_FPUT_Toda {
 			parser(argc, argv);
 			split_kernel = parser.vm.count("split_kernel");
 		}
+		auto ctx = cuda_ctx.activate(mpi_node_coord);
 
 		cudalist<double> omega(gconf.chain_length);
 		{
@@ -102,7 +103,7 @@ namespace DNKG_FPUT_Toda {
 		}
 		destructor([&] { delete splitter; });
 
-		loop_control loop_ctl(streams[s_move]);
+		loop_control_gpu loop_ctl(gconf.time_offset, streams[s_move]);
 		auto dumper = [&] {
 			cudaMemcpyAsync(gres.shard_host, gres.shard, gconf.sizeof_shard, cudaMemcpyDeviceToHost, streams[s_dump]) &&
 			assertcu;
