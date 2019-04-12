@@ -1,9 +1,6 @@
 #pragma once
 
 #include <string>
-#include <sstream>
-#include <functional>
-#include <map>
 #include <csignal>
 #include <boost/mpi.hpp>
 #include "configuration.hpp"
@@ -59,9 +56,3 @@ namespace boost {
  */
 
 extern const std::string process_ident;
-
-/*
- * Associate subprograms to --program argument.
- */
-
-std::map<std::string, std::function<int(int argc, char *argv[])>> &programs();

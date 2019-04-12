@@ -3,6 +3,14 @@
 #include <cstdint>
 #include <string>
 #include <vector>
+#include <functional>
+#include <map>
+
+/*
+ * Associate subprograms to --program argument.
+ */
+
+std::map<std::string, std::function<int(int argc, char *argv[])>> &programs();
 
 /*
  * Global configuration and resources.
