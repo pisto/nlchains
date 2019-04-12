@@ -1,6 +1,5 @@
 #include <csignal>
 #include <iostream>
-#include <sstream>
 #include <fstream>
 #include <boost/core/demangle.hpp>
 #include <boost/program_options.hpp>
@@ -139,9 +138,7 @@ void parse_cmdline::operator()(int argc, char *argv[]) try {
 
 
 static int print_fatal_error(const string &msg) {
-	ostringstream fmtmsg;
-	fmtmsg << process_ident << ": " << msg << endl;
-	cerr << fmtmsg.str();
+	collect_ostream(cerr) << process_ident << ": " << msg << endl;
 	return 1;
 }
 

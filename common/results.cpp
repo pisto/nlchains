@@ -21,10 +21,8 @@ void results::write_entropy(uint64_t t, const array<double, 2> &entropies) const
 	if (mpi_global_coord) return;
 	double entropyinfo[]{t * gconf.dt, entropies[0], entropies[1]};
 	entropydump.write((char *) &entropyinfo, sizeof(entropyinfo)).flush();
-	if (!gconf.verbose) return;
-	ostringstream info("Entropy step ", ios::app);
-	info << t << ": " << entropyinfo[1] << '/' << entropyinfo[2] << endl;
-	cerr << info.str();
+	if (gconf.verbose)
+		collect_ostream(cout) << "Entropy step " << t << ": " << entropyinfo[1] << '/' << entropyinfo[2] << endl;
 }
 
 void results::write_linenergies(uint64_t t) const {

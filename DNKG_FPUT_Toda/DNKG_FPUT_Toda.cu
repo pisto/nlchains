@@ -1,9 +1,13 @@
 #include <sstream>
 #include <iostream>
+#include <string>
 #include <cub/util_ptx.cuh>
+#include "../common/utilities.hpp"
 #include "../common/utilities_cuda.cuh"
 #include "../common/configuration.hpp"
 #include "DNKG_FPUT_Toda.hpp"
+
+extern const std::string process_ident;
 
 namespace DNKG_FPUT_Toda {
 
@@ -273,10 +277,10 @@ namespace DNKG_FPUT_Toda {
 			} else {
 				static bool warned = false;
 				if (!warned && gconf.chain_length < 2048) {
-					std::ostringstream msg("Could not find optimized version for chain_length ", std::ios::app);
-					msg << gconf.chain_length << ", try to reconfigure with -Doptimized_chain_length="
-					    << gconf.chain_length << " and recompile." << std::endl;
-					std::cerr << msg.str();
+					collect_ostream(std::cerr) << process_ident << ": could not find optimized version for chain_length "
+					                           << gconf.chain_length
+					                           << ", try to reconfigure with -Doptimized_chain_length="
+					                           << gconf.chain_length << " and recompile." << std::endl;
 					warned = true;
 				}
 				splitter = new plane2split(gconf.chain_length, gconf.shard_copies);
