@@ -55,13 +55,13 @@ if(CMAKE_BUILD_TYPE MATCHES Debug)
     set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -G")
 endif()
 if(CMAKE_BUILD_TYPE MATCHES Rel)
-    #aid SIMD vectorization in results_entropy.cpp
+    #aid SIMD vectorization
     if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
-        set_property(SOURCE common/results_entropy.cpp APPEND PROPERTY COMPILE_FLAGS "-Ofast")
+        set_property(SOURCE common/results_entropy.cpp DNKG_FPUT_Toda/cpu-implementation/DNKG_FPUT_Toda.cpp dDNKG/cpu-implementation/dDNKG.cpp DNLS/cpu-implementation/DNLS.cpp APPEND PROPERTY COMPILE_FLAGS "-Ofast")
     endif()
     find_package(OpenMP)
     if(OpenMP_CXX_FOUND)
-        set_property(SOURCE common/results_entropy.cpp APPEND_STRING PROPERTY COMPILE_FLAGS " ${OpenMP_CXX_FLAGS} ")
+        set_property(SOURCE common/results_entropy.cpp DNKG_FPUT_Toda/cpu-implementation/DNKG_FPUT_Toda.cpp dDNKG/cpu-implementation/dDNKG.cpp DNLS/cpu-implementation/DNLS.cpp APPEND_STRING PROPERTY COMPILE_FLAGS " ${OpenMP_CXX_FLAGS} ")
     endif()
 endif()
 
@@ -76,9 +76,9 @@ set_source_files_properties(DNKG_FPUT_Toda/DNKG_FPUT_Toda.cu dDNKG/dDNKG.cu PROP
 #link/build flags
 add_executable(nlchains
         common/main.cpp common/results.cpp common/utilities_cuda.cu common/utilities_cuda.cpp common/results_entropy.cpp
-        DNKG_FPUT_Toda/DNKG_FPUT_Toda.cpp DNKG_FPUT_Toda/DNKG_FPUT_Toda.cu DNKG_FPUT_Toda/dispersion.cpp
-        dDNKG/eigensystem.cpp dDNKG/dDNKG.cpp dDNKG/dDNKG.cu
-        DNLS/DNLS.cpp DNLS/DNLS.cu DNLS/dispersion.cpp)
+        DNKG_FPUT_Toda/DNKG_FPUT_Toda.cpp DNKG_FPUT_Toda/DNKG_FPUT_Toda.cu DNKG_FPUT_Toda/cpu-implementation/DNKG_FPUT_Toda.cpp DNKG_FPUT_Toda/dispersion.cpp
+        dDNKG/eigensystem.cpp dDNKG/dDNKG.cpp dDNKG/dDNKG.cu dDNKG/cpu-implementation/dDNKG.cpp
+        DNLS/DNLS.cpp DNLS/DNLS.cu DNLS/dispersion.cpp DNLS/cpu-implementation/DNLS.cpp)
 
 set_property(TARGET nlchains PROPERTY CUDA_SEPARABLE_COMPILATION ON)
 #XXX workaround for bad CMake support for device link libraries, see https://gitlab.kitware.com/cmake/cmake/issues/18599 https://gitlab.kitware.com/cmake/cmake/issues/18614
@@ -88,4 +88,5 @@ target_link_libraries(nlchains
         ${Boost_LIBRARIES}
         ${MPI_CXX_LINK_FLAGS} ${MPI_CXX_LIBRARIES}
         ${ARMADILLO_LIBRARIES}
-        -lcublas -lcufft_static -lculibos)
+        -lcublas -lcufft_static -lculibos
+        ${FFTW3_LIBRARY_DIRS} ${FFTW3_LIBRARIES})
