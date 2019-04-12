@@ -79,6 +79,11 @@ add_executable(nlchains
         DNKG_FPUT_Toda/DNKG_FPUT_Toda.cpp DNKG_FPUT_Toda/DNKG_FPUT_Toda.cu DNKG_FPUT_Toda/cpu-implementation/DNKG_FPUT_Toda.cpp DNKG_FPUT_Toda/dispersion.cpp
         dDNKG/eigensystem.cpp dDNKG/dDNKG.cpp dDNKG/dDNKG.cu dDNKG/cpu-implementation/dDNKG.cpp
         DNLS/DNLS.cpp DNLS/DNLS.cu DNLS/dispersion.cpp DNLS/cpu-implementation/DNLS.cpp)
+add_executable(nlchains-cpu EXCLUDE_FROM_ALL
+        common/main.cpp common/results.cpp common/results_entropy.cpp
+        DNKG_FPUT_Toda/cpu-implementation/DNKG_FPUT_Toda.cpp DNKG_FPUT_Toda/dispersion.cpp
+        dDNKG/eigensystem.cpp dDNKG/cpu-implementation/dDNKG.cpp
+        DNLS/dispersion.cpp DNLS/cpu-implementation/DNLS.cpp)
 
 set_property(TARGET nlchains PROPERTY CUDA_SEPARABLE_COMPILATION ON)
 #XXX workaround for bad CMake support for device link libraries, see https://gitlab.kitware.com/cmake/cmake/issues/18599 https://gitlab.kitware.com/cmake/cmake/issues/18614
@@ -89,4 +94,10 @@ target_link_libraries(nlchains
         ${MPI_CXX_LINK_FLAGS} ${MPI_CXX_LIBRARIES}
         ${ARMADILLO_LIBRARIES}
         -lcublas -lcufft_static -lculibos
+        ${FFTW3_LIBRARY_DIRS} ${FFTW3_LIBRARIES})
+
+target_link_libraries(nlchains-cpu
+        ${Boost_LIBRARIES}
+        ${MPI_CXX_LINK_FLAGS} ${MPI_CXX_LIBRARIES}
+        ${ARMADILLO_LIBRARIES}
         ${FFTW3_LIBRARY_DIRS} ${FFTW3_LIBRARIES})
