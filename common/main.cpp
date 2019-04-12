@@ -154,7 +154,7 @@ int main(int argc, char **argv) try {
 	}
 	if (argc == 1) {
 		if (!mpi_global_coord)
-			cerr << "Please specify as first argument the subprogram to run: " << program_names << endl;
+			cout << "Please specify as first argument the subprogram to run: " << program_names << endl;
 		return 0;
 	}
 	auto program = programs().find(argv[1]);
@@ -181,7 +181,7 @@ int main(int argc, char **argv) try {
 	return program->second(argc - 1, argv + 1);
 
 } catch (const parse_cmdline::help_quit &e) {
-	if (!mpi_global_coord) cerr << e.options;
+	if (!mpi_global_coord) cout << e.options;
 	return 0;
 } catch (const ios_base::failure &e) {
 	return print_fatal_error("I/O error, "s + e.what() + " (" + e.code().message() + ")");
