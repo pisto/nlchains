@@ -43,6 +43,12 @@ get_filename_component(CUDA_ROOT ${CMAKE_CUDA_COMPILER} DIRECTORY)
 get_filename_component(CUDA_ROOT ${CUDA_ROOT} DIRECTORY)
 include_directories(${CUDA_ROOT}/include)
 
+#XXX this fails hard on distro that don't build FFTW3 with CMake
+#find_package(FFTW3)
+find_package(PkgConfig REQUIRED)
+pkg_search_module(FFTW3 REQUIRED fftw3)
+include_directories(${FFTW3_INCLUDE_DIRS})
+
 
 #debug/optimization
 if(CMAKE_BUILD_TYPE MATCHES Debug)
