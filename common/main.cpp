@@ -121,11 +121,9 @@ void parse_cmdline::operator()(int argc, char *argv[]) try {
 		try {
 			ifstream entropymask_file(entropymask_filename);
 			entropymask_file.exceptions(ios::failbit | ios::badbit | ios::eofbit);
-			uint16_t mode = 0;
-			loopi(gconf.chain_length) {
-				if (entropymask_file.get()) gconf.entropy_modes_indices.push_back(mode);
-				mode++;
-			}
+			loopi(gconf.chain_length)
+				if (entropymask_file.get()) gconf.entropy_modes_indices.push_back(i);
+			if (gconf.entropy_modes_indices.size() < 2) throw invalid_argument("Too few modes for entropy calculation");
 		} catch (const ios_base::failure &e) {
 			throw ios_base::failure("could not read entropy mask file ("s + e.what() + ")", e.code());
 		}

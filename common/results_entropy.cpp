@@ -24,7 +24,6 @@ array<double, 2> results::entropies(const double *shard_linenergies, double norm
 		modes = linenergies.data() + a0is0;
 		modes_tot = gconf.chain_length - a0is0;
 	} else {
-		if (entropy_modes.empty()) entropy_modes.resize(entropy_modes_indices.size());
 		loopi(entropy_modes.size()) entropy_modes[i] = linenergies[entropy_modes_indices[i]];
 		modes = entropy_modes.data();
 		modes_tot = entropy_modes.size();
