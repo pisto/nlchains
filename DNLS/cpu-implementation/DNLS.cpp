@@ -56,9 +56,9 @@ namespace DNLS {
 			destructor(fftw_cleanup);
 			wsync.gather();
 			fftw_iodim fft_dim{ gconf.chain_length, 1, 1 };
-			auto fft = fftw_plan_guru_split_dft(1, &fft_dim, 0, 0, psi_r, psi_i, psi_r, psi_i, FFTW_EXHAUSTIVE);
+			auto fft = fftw_plan_guru_split_dft(1, &fft_dim, 0, 0, psi_r, psi_i, psi_r, psi_i, FFTW_EXHAUSTIVE | wsync.fftw_flags);
 			//XXX fftw_execute_split_dft(fft, psi_i, psi_r, psi_i, psi_r) should do an inverse transform but it returns garbage
-			auto fft_back = fftw_plan_guru_split_dft(1, &fft_dim, 0, 0, psi_i, psi_r, psi_i, psi_r, FFTW_EXHAUSTIVE);
+			auto fft_back = fftw_plan_guru_split_dft(1, &fft_dim, 0, 0, psi_i, psi_r, psi_i, psi_r, FFTW_EXHAUSTIVE | wsync.fftw_flags);
 			destructor([=] { fftw_destroy_plan(fft); fftw_destroy_plan(fft_back); });
 			if (!fft || !fft_back) throw runtime_error("Cannot create FFTW3 plan");
 			wsync.scatter();
