@@ -84,8 +84,25 @@ struct collect_ostream : std::ostringstream {
 	~collect_ostream() { out << str(); }
 
 	template<typename T>
-	collect_ostream &operator<<(T &&t) const {
+	std::ostringstream &operator<<(T &&t) const {
 		return const_cast<collect_ostream &>(*this) << std::forward<T>(t);
 	}
 
 };
+
+/*
+ * Alignment stuff.
+ */
+
+#include <boost/align/aligned_allocator.hpp>
+#include <boost/version.hpp>
+#if defined(__GNUC__) && BOOST_VERSION < 106100
+//XXX type error in older versions of boost
+#undef BOOST_ALIGN_ASSUME_ALIGNED
+#define BOOST_ALIGN_ASSUME_ALIGNED(p, n) \
+(p) = static_cast<__typeof__(p)>(__builtin_assume_aligned((p), (n)))
+#else
+#include <boost/align/assume_aligned.hpp>
+#endif
+
+template<typename T> using simd_allocator = boost::alignment::aligned_allocator<T, 64>;

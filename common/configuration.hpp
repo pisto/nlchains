@@ -61,12 +61,10 @@ struct parse_cmdline {
 	};
 };
 
-#include <boost/align/aligned_allocator.hpp>
-#include <boost/align/assume_aligned.hpp>
+
+#include "utilities.hpp"
 //for double2
 #include <vector_types.h>
-
-template<typename T> using simd_allocator = boost::alignment::aligned_allocator<T, 64>;
 
 extern struct resources {
 	double2 *shard = 0, *shard_host = 0;
