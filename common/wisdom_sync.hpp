@@ -39,7 +39,7 @@ struct wisdom_sync {
 			if (wisdom_mode == "none")
 				collect_ostream(std::cerr) << process_ident << ": FFTW wisdom:" << std::endl << wisdom << std::endl;
 			else if (!mpi_global_coord)
-				collect_ostream(std::cout) << ": FFTW wisdom:" << std::endl << wisdom << std::endl;
+				collect_ostream(std::cout) << "FFTW wisdom:" << std::endl << wisdom << std::endl;
 		}
 	}
 
