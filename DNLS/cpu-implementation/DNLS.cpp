@@ -86,7 +86,7 @@ namespace DNLS {
 					exp_i = sqrt(1 - exp_r * exp_r);                //vectorized (native VSQRTPD), exp_i = abs(sin(angle))
 					//branchless sign fix
 					auto invert_sign = int32_t(angle / M_PI) & 1;   //0 -> even half-circles,  1 -> odd half-circles
-					exp_i *= (invert_sign ? -1. : 1.) * copysign(1., angle);
+					exp_i *= (1. - 2. * invert_sign) * copysign(1., angle);
 					#endif
 					split_complex_mul(psi_r[i], psi_i[i], exp_r, exp_i);
 				}
