@@ -9,7 +9,6 @@
 
 struct wisdom_sync {
 
-	std::string wisdom_mode;
 	const int &fftw_flags = _fftw_flags;
 
 	void add_options(boost::program_options::options_description &options) {
@@ -46,5 +45,6 @@ struct wisdom_sync {
 private:
 
 	mutable int _fftw_flags = 0;
+	std::string wisdom_mode;
 
 };
