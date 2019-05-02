@@ -84,8 +84,8 @@ struct collect_ostream : std::ostringstream {
 	~collect_ostream() { out << str(); }
 
 	template<typename T>
-	std::ostringstream &operator<<(T &&t) const {
-		return const_cast<collect_ostream &>(*this) << std::forward<T>(t);
+	std::ostream &operator<<(T &&t) const {
+		return static_cast<std::ostringstream &>(const_cast<collect_ostream &>(*this)) << std::forward<T>(t);
 	}
 
 };
