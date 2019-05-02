@@ -36,12 +36,8 @@ struct wisdom_sync {
 	void scatter() const {
 		std::string wisdom = fftw_export_wisdom_to_string();
 		if (wisdom_mode == "sync" && !mpi_global_coord) boost::mpi::broadcast(mpi_global, wisdom, 0);
-		if (gconf.verbose) {
-			if (wisdom_mode == "none")
-				collect_ostream(std::cerr) << process_ident << ": FFTW wisdom:" << std::endl << wisdom << std::endl;
-			else if (!mpi_global_coord)
-				collect_ostream(std::cout) << "FFTW wisdom:" << std::endl << wisdom << std::endl;
-		}
+		if (gconf.verbose && (wisdom_mode == "none" || !mpi_global_coord))
+			collect_ostream(std::cerr) << process_ident << ": FFTW wisdom:" << std::endl << wisdom << std::endl;
 	}
 
 private:
