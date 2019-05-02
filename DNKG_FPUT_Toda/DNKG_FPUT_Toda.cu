@@ -267,14 +267,14 @@ namespace DNKG_FPUT_Toda {
 				auto &kinfo = thread_kernel_resolver<model>::get(gconf.chain_length);
 				auto linear_config = kinfo.linear_configuration(gconf.shard_copies);
 				kinfo.k <<< linear_config.x, linear_config.y, 0, stream >>>
-				        (gres.shard, gconf.kernel_batching, gconf.shard_copies);
+				        (gres.shard_gpu, gconf.kernel_batching, gconf.shard_copies);
 			} else if (gconf.chain_length == optimized_chain_length) {
 				static auto kinfo = make_kernel_info_name(move_chain_in_warp<model>,
 				                                          std::string("move_chain_in_warp<") +
 				                                          std::to_string(int(model)) + ">");
 				auto linear_config = kinfo.linear_configuration(uint32_t(gconf.shard_copies) * 32);
 				kinfo.k <<< linear_config.x, linear_config.y, 0, stream >>>
-				        (gres.shard, gconf.kernel_batching, gconf.shard_copies);
+				        (gres.shard_gpu, gconf.kernel_batching, gconf.shard_copies);
 			} else {
 				static bool warned = false;
 				if (!warned && gconf.chain_length < 2048) {
@@ -285,7 +285,7 @@ namespace DNKG_FPUT_Toda {
 					warned = true;
 				}
 				splitter = new plane2split(gconf.chain_length, gconf.shard_copies);
-				splitter->split(gres.shard, stream);
+				splitter->split(gres.shard_gpu, stream);
 				return move<model>(splitter, stream);
 			}
 		}
@@ -322,7 +322,7 @@ namespace DNKG_FPUT_Toda {
 		static auto kinfo = make_kernel_info(make_linenergies_kernel);
 		auto linear_config = kinfo.linear_configuration(gconf.chain_length);
 		kinfo.k <<< linear_config.x, linear_config.y, 0, stream >>>
-		        (gconf.chain_length, gconf.shard_copies, gres.linenergies_host, fft_phis, fft_pis, omegas);
+		        (gconf.chain_length, gconf.shard_copies, gres.linenergies_gpu, fft_phis, fft_pis, omegas);
 		cudaGetLastError() && assertcu;
 		return completion(stream);
 	}

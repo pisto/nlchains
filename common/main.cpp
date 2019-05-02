@@ -103,11 +103,10 @@ void parse_cmdline::operator()(int argc, char *argv[]) try {
 		throw invalid_argument("(--chain_length * --copies) / mpi_processes must be <= 2^30");
 	gconf.shard_elements = uint32_t(gconf.chain_length) * gconf.shard_copies;
 	gconf.sizeof_shard = sizeof(double2) * gconf.shard_elements;
-	gres.shard_cpu.resize(gconf.shard_elements);
-	gres.shard = gres.shard_host = gres.shard_cpu.data();
-	gres.linenergies_cpu.resize(gconf.chain_length);
-	gres.linenergies_host = gres.linenergies_cpu.data();
-	memset(gres.linenergies_host, 0, sizeof(double) * gconf.chain_length);
+	gres.shard_buffer.resize(gconf.shard_elements);
+	gres.linenergies_buffer.resize(gconf.chain_length);
+	gres.shard_host = gres.shard_buffer.data();
+	gres.linenergies_host = gres.linenergies_buffer.data();
 	//XXX catching ios_base::failure does not work with gcc 5/6, see https://gcc.gnu.org/bugzilla/show_bug.cgi?id=66145
 	//working around it would be difficult and ugly, let's just hope software stacks move on.
 	try {

@@ -67,10 +67,11 @@ struct parse_cmdline {
 #include <vector_types.h>
 
 extern struct resources {
-	double2 *shard = 0, *shard_host = 0;
-	double *linenergies_host = 0;
+	double2 *shard_host = 0, *shard_gpu = 0;
+	double *linenergies_host = 0, *linenergies_gpu = 0;
+
 private:
-	std::vector<double2> shard_cpu;
-	std::vector<double, simd_allocator<double>> linenergies_cpu;
+	std::vector<double2> shard_buffer;
+	std::vector<double, simd_allocator<double>> linenergies_buffer;
 	friend struct parse_cmdline;
 } gres;

@@ -211,12 +211,12 @@ namespace dDNKG {
 				auto &kinfo = thread_kernel_resolver<>::get(gconf.chain_length);
 				auto linear_config = kinfo.linear_configuration(gconf.shard_copies);
 				kinfo.k <<< linear_config.x, linear_config.y, 0, stream >>>
-				        (gres.shard, gconf.kernel_batching, gconf.shard_copies);
+				        (gres.shard_gpu, gconf.kernel_batching, gconf.shard_copies);
 			} else if (gconf.chain_length == optimized_chain_length) {
 				static auto kinfo = make_kernel_info(move_chain_in_warp);
 				auto linear_config = kinfo.linear_configuration(uint32_t(gconf.shard_copies) * 32);
 				kinfo.k <<< linear_config.x, linear_config.y, 0, stream >>>
-				        (gres.shard, mp2_gmem, gconf.kernel_batching, gconf.shard_copies);
+				        (gres.shard_gpu, mp2_gmem, gconf.kernel_batching, gconf.shard_copies);
 			} else {
 				static bool warned = false;
 				if (!warned && gconf.chain_length < 2048) {
@@ -260,7 +260,7 @@ namespace dDNKG {
 		static auto kinfo = make_kernel_info(make_linenergies_kernel);
 		auto linear_config = kinfo.linear_configuration(uint32_t(gconf.chain_length) * 32);
 		kinfo.k <<< linear_config.x, linear_config.y, 0, stream >>>
-		        (projection_phi, projection_pi, gconf.chain_length, gconf.shard_copies, gres.linenergies_host);
+		        (projection_phi, projection_pi, gconf.chain_length, gconf.shard_copies, gres.linenergies_gpu);
 		cudaGetLastError() && assertcu;
 		return completion(stream);
 	}

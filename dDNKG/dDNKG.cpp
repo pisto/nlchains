@@ -98,12 +98,12 @@ namespace dDNKG {
 		set_device_object(beta, dDNKG::beta);
 
 		plane2split splitter(gconf.chain_length, gconf.shard_copies);
-		splitter.split(gres.shard, streams[s_move]);
+		splitter.split(gres.shard_gpu, streams[s_move]);
 
 		loop_control_gpu loop_ctl(gconf.time_offset, streams[s_move]);
 		auto dumper = [&] {
-			if (split_kernel) splitter.plane(gres.shard, streams[s_move], streams[s_dump]);
-			cudaMemcpyAsync(gres.shard_host, gres.shard, gconf.sizeof_shard, cudaMemcpyDeviceToHost, streams[s_dump]) &&
+			if (split_kernel) splitter.plane(gres.shard_gpu, streams[s_move], streams[s_dump]);
+			cudaMemcpyAsync(gres.shard_host, gres.shard_gpu, gconf.sizeof_shard, cudaMemcpyDeviceToHost, streams[s_dump]) &&
 			assertcu;
 			completion done_copy(streams[s_dump]);
 			if (!split_kernel) done_copy.blocks(streams[s_move]);
@@ -113,7 +113,7 @@ namespace dDNKG {
 		while (1) {
 			bool full_dump = loop_ctl % gconf.dump_interval == 0;
 			if (full_dump) dumper();
-			if (!split_kernel) splitter.split(gres.shard, streams[s_move], streams[s_entropy]);
+			if (!split_kernel) splitter.split(gres.shard_gpu, streams[s_move], streams[s_entropy]);
 			completion(streams[s_entropy]).blocks(streams[s_entropy_aux]);
 			double one = 1, zero = 0;
 			cublasSetStream(cublas, streams[s_entropy]) && assertcublas;

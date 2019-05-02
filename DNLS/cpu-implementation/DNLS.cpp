@@ -64,7 +64,7 @@ namespace DNLS {
 			wsync.scatter();
 
 			auto accumulate_linenergies = [&](size_t c) {
-				auto planar = &gres.shard[c * gconf.chain_length];
+				auto planar = &gres.shard_host[c * gconf.chain_length];
 				loopi(gconf.chain_length) psi_r[i] = planar[i].x, psi_i[i] = planar[i].y;
 				fftw_execute(fft);
 				loopi(gconf.chain_length) gres.linenergies_host[i] += psi_r[i] * psi_r[i] + psi_i[i] * psi_i[i];
@@ -105,7 +105,7 @@ namespace DNLS {
 				res.check_entropy(entropies);
 				res.write_entropy(loop_ctl, entropies);
 				if (loop_ctl % gconf.dump_interval == 0) {
-					res.write_shard(loop_ctl, gres.shard);
+					res.write_shard(loop_ctl, gres.shard_host);
 					res.write_linenergies(loop_ctl);
 				}
 
@@ -113,7 +113,7 @@ namespace DNLS {
 
 				loopi(gconf.chain_length) gres.linenergies_host[i] = 0;
 				for (int c = 0; c < gconf.shard_copies; c++) {
-					auto planar = &gres.shard[c * gconf.chain_length];
+					auto planar = &gres.shard_host[c * gconf.chain_length];
 					loopi(gconf.chain_length) psi_r[i] = planar[i].x, psi_i[i] = planar[i].y;
 					for (uint32_t i = 0; i < gconf.kernel_batching; i++)
 						for (int k = 0; k < 7; k++) {
@@ -136,7 +136,7 @@ namespace DNLS {
 			}
 
 			if (loop_ctl % gconf.dump_interval != 0) {
-				res.write_shard(loop_ctl, gres.shard);
+				res.write_shard(loop_ctl, gres.shard_host);
 				res.write_linenergies(loop_ctl);
 			}
 			return 0;

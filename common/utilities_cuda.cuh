@@ -383,7 +383,7 @@ extern struct cuda_ctx_t {
 	cuda_ctx_raii activate(int id);
 
 private:
-	cudalist<double2> shard;
+	cudalist<double2> shard_buffer_gpu;
 } cuda_ctx;
 
 /*

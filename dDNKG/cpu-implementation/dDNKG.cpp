@@ -56,7 +56,7 @@ namespace dDNKG {
 			loopi(8) dt_c[i] = symplectic_c[i] * gconf.dt, dt_d[i] = symplectic_d[i] * gconf.dt;
 
 			auto accumulate_linenergies = [&](size_t c) {
-				auto chain = &gres.shard[c * gconf.chain_length];
+				auto chain = &gres.shard_host[c * gconf.chain_length];
 				auto eigen = eigenvectors.memptr();
 				loopi(gconf.chain_length) {
 					double dotphi = 0, dotpi = 0;
@@ -82,7 +82,7 @@ namespace dDNKG {
 				res.check_entropy(entropies);
 				res.write_entropy(loop_ctl, entropies);
 				if (loop_ctl % gconf.dump_interval == 0) {
-					res.write_shard(loop_ctl, gres.shard);
+					res.write_shard(loop_ctl, gres.shard_host);
 					res.write_linenergies(loop_ctl);
 				}
 
@@ -90,7 +90,7 @@ namespace dDNKG {
 
 				loopi(gconf.chain_length) gres.linenergies_host[i] = 0;
 				for (int c = 0; c < gconf.shard_copies; c++) {
-					auto planar = &gres.shard[c * gconf.chain_length];
+					auto planar = &gres.shard_host[c * gconf.chain_length];
 					for (int i_0 = 0, i = 1; i_0 < gconf.chain_length; i_0++, i++)
 						phi[i] = planar[i_0].x, pi[i_0] = planar[i_0].y;
 					for (auto i = 0; i < gconf.kernel_batching; i++) {
@@ -118,7 +118,7 @@ namespace dDNKG {
 			}
 
 			if (loop_ctl % gconf.dump_interval != 0) {
-				res.write_shard(loop_ctl, gres.shard);
+				res.write_shard(loop_ctl, gres.shard_host);
 				res.write_linenergies(loop_ctl);
 			}
 			return 0;

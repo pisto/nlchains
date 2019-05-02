@@ -90,13 +90,13 @@ namespace DNKG_FPUT_Toda {
 		plane2split *splitter = 0;
 		if (split_kernel) {
 			splitter = new plane2split(gconf.chain_length, gconf.shard_copies);
-			splitter->split(gres.shard, streams[s_move]);
+			splitter->split(gres.shard_gpu, streams[s_move]);
 		}
 		destructor([&] { delete splitter; });
 
 		loop_control_gpu loop_ctl(gconf.time_offset, streams[s_move]);
 		auto dumper = [&] {
-			cudaMemcpyAsync(gres.shard_host, gres.shard, gconf.sizeof_shard, cudaMemcpyDeviceToHost, streams[s_dump]) &&
+			cudaMemcpyAsync(gres.shard_host, gres.shard_gpu, gconf.sizeof_shard, cudaMemcpyDeviceToHost, streams[s_dump]) &&
 			assertcu;
 			completion done_copy(streams[s_dump]);
 			if (!splitter) done_copy.blocks(streams[s_move]);
@@ -104,16 +104,16 @@ namespace DNKG_FPUT_Toda {
 		};
 		destructor(cudaDeviceSynchronize);
 		while (1) {
-			if (splitter) splitter->plane(gres.shard, streams[s_move], streams[s_dump]).blocks(streams[s_entropy]);
+			if (splitter) splitter->plane(gres.shard_gpu, streams[s_move], streams[s_dump]).blocks(streams[s_entropy]);
 			bool full_dump = loop_ctl % gconf.dump_interval == 0;
 			if (full_dump) dumper();
 			//entropy stream is already synced to move or dump stream, that is the readiness of the planar representation
 			cudaMemsetAsync(fft_phi, 0, gconf.sizeof_shard * 2, streams[s_entropy]) && assertcu;
 			completion(streams[s_entropy]).blocks(streams[s_entropy_aux]);
 			//interleave phi and pi with zeroes, since we do a complex FFT
-			cudaMemcpy2DAsync(fft_phi, sizeof(double2), gres.shard, sizeof(double2), sizeof(double),
+			cudaMemcpy2DAsync(fft_phi, sizeof(double2), gres.shard_gpu, sizeof(double2), sizeof(double),
 			                  gconf.shard_elements, cudaMemcpyDeviceToDevice, streams[s_entropy]) && assertcu;
-			cudaMemcpy2DAsync(fft_pi, sizeof(double2), &gres.shard[0].y, sizeof(double2), sizeof(double),
+			cudaMemcpy2DAsync(fft_pi, sizeof(double2), &gres.shard_gpu[0].y, sizeof(double2), sizeof(double),
 			                  gconf.shard_elements, cudaMemcpyDeviceToDevice, streams[s_entropy_aux]) && assertcu;
 			completion(streams[s_entropy_aux]).blocks(streams[s_entropy]);
 			if (!splitter) completion(streams[s_entropy]).blocks(streams[s_move]);

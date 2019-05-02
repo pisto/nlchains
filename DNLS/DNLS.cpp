@@ -127,7 +127,7 @@ namespace DNLS {
 
 		loop_control_gpu loop_ctl(gconf.time_offset, streams[s_move]);
 		auto dumper = [&] {
-			cudaMemcpyAsync(gres.shard_host, gres.shard, gconf.sizeof_shard, cudaMemcpyDeviceToHost, streams[s_dump]) &&
+			cudaMemcpyAsync(gres.shard_host, gres.shard_gpu, gconf.sizeof_shard, cudaMemcpyDeviceToHost, streams[s_dump]) &&
 			assertcu;
 			completion(streams[s_dump]).blocks(streams[s_move]);
 		};
@@ -135,7 +135,7 @@ namespace DNLS {
 		while (1) {
 			bool full_dump = loop_ctl % gconf.dump_interval == 0;
 			if (full_dump) dumper();
-			cufftExecZ2Z(fft_plain_entropy, gres.shard, psis_k, CUFFT_FORWARD) && assertcufft;
+			cufftExecZ2Z(fft_plain_entropy, gres.shard_gpu, psis_k, CUFFT_FORWARD) && assertcufft;
 			completion(streams[s_entropy]).blocks(streams[s_move]);
 			make_linenergies(psis_k, omega, streams[s_entropy]);
 			completion(streams[s_entropy]).blocks(streams[s_results]);
@@ -163,13 +163,13 @@ namespace DNLS {
 						                sizeof(double), cudaMemcpyHostToDevice, streams[s_cb_nonlinear]);
 						completion(streams[s_cb_nonlinear]).blocks(streams[s_move]);
 					} else evolve_nonlinear(beta * gconf.dt * (!k && i ? 2. : 1.) * symplectic_c[k], streams[s_move]);
-					cufftExecZ2Z(fft_elvolve_psi ?: fft_plain, gres.shard, gres.shard, CUFFT_FORWARD) && assertcufft;
+					cufftExecZ2Z(fft_elvolve_psi ?: fft_plain, gres.shard_gpu, gres.shard_gpu, CUFFT_FORWARD) && assertcufft;
 					completion(streams[s_move]).blocks(streams[s_cb_nonlinear]);
 					if (fft_elvolve_psik) {
 						memset_device_object(callback::evolve_linear_table_idx, k, streams[s_cb_linear]);
 						completion(streams[s_cb_linear]).blocks(streams[s_move]);
 					} else evolve_linear(&evolve_linear_tables_all[k * gconf.chain_length], streams[s_move]);
-					cufftExecZ2Z(fft_elvolve_psik ?: fft_plain, gres.shard, gres.shard, CUFFT_INVERSE) && assertcufft;
+					cufftExecZ2Z(fft_elvolve_psik ?: fft_plain, gres.shard_gpu, gres.shard_gpu, CUFFT_INVERSE) && assertcufft;
 					completion(streams[s_move]).blocks(streams[s_cb_linear]);
 				}
 			completion finish_move = evolve_nonlinear(beta * gconf.dt * symplectic_c[7], streams[s_move]);

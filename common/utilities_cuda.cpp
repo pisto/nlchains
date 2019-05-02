@@ -15,9 +15,10 @@ cuda_ctx_t::cuda_ctx_raii cuda_ctx_t::activate(int id) {
 	cuda_ctx_t::cuda_ctx_raii raii;
 	this->id = id;
 	cudaHostRegister(gres.linenergies_host, gconf.sizeof_linenergies, cudaHostRegisterDefault) && assertcu;
+	cudaHostGetDevicePointer(&gres.linenergies_gpu, gres.linenergies_host, 0) && assertcu;
 	cudaHostRegister(gres.shard_host, gconf.sizeof_shard, cudaHostRegisterDefault) && assertcu;
-	gres.shard = shard = gconf.shard_elements;
-	cudaMemcpy(gres.shard, gres.shard_host, gconf.sizeof_shard, cudaMemcpyHostToDevice) && assertcu;
+	gres.shard_gpu = shard_buffer_gpu = gconf.shard_elements;
+	cudaMemcpy(gres.shard_gpu, gres.shard_host, gconf.sizeof_shard, cudaMemcpyHostToDevice) && assertcu;
 
 	cudaGetDeviceProperties(&dev_props, id) && assertcu;
 	collect_ostream(cout) << process_ident << ": GPU id " << id << ", clocks MHz " << dev_props.clockRate / 1000 << '/'
@@ -29,8 +30,9 @@ cuda_ctx_t::cuda_ctx_raii::~cuda_ctx_raii() {
 	if (!active) return;
 	cudaDeviceSynchronize() && assertcu;
 	cudaHostUnregister(gres.linenergies_host);
+	gres.linenergies_gpu = 0;
 	cudaHostUnregister(gres.shard_host);
-	gres.shard = gres.shard_host;
+	gres.shard_gpu = 0;
 	cuda_ctx = cuda_ctx_t();
 	cudaDeviceReset();
 }
