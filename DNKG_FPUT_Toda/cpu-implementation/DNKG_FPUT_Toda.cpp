@@ -43,7 +43,7 @@ namespace DNKG_FPUT_Toda {
 		make_simd_clones("default,avx,avx512f")
 		int main(int argc, char *argv[]) {
 
-			wisdom_sync wsync;
+			wisdom_sync wsync("none");
 			{
 				using namespace boost::program_options;
 				parse_cmdline parser("Options for "s + argv[0]);
@@ -78,7 +78,7 @@ namespace DNKG_FPUT_Toda {
 			auto fft_phis = fftw_alloc_complex(gconf.chain_length), fft_pis = fftw_alloc_complex(gconf.chain_length);
 			destructor([=] { fftw_free(fft_phis); fftw_free(fft_pis); });
 			if (!fft_phis || !fft_pis) throw bad_alloc();
-			auto plan = fftw_plan_dft_1d(gconf.chain_length, fft_phis, fft_phis, FFTW_FORWARD, FFTW_EXHAUSTIVE);
+			auto plan = fftw_plan_dft_1d(gconf.chain_length, fft_phis, fft_phis, FFTW_FORWARD, FFTW_EXHAUSTIVE | wsync.fftw_flags);
 			destructor([=] { fftw_destroy_plan(plan); });
 			if (!plan) throw runtime_error("Cannot create FFTW3 plan");
 			wsync.scatter();
