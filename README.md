@@ -139,4 +139,6 @@ terminate called after throwing an instance of 'std::ios_base::failure'
 
 When run interactively, the program may not close gracefully by interrupting it, e.g. with CTRL-C. This is due to a limitation of the MPI implementation, that may or may not propagate termination signals correctly to all the MPI processes.
 
-On OpenMPI 1.x termination through signals (SIGTERM/SIGINT) does not terminate the MPI processes gracefully because SIGKILL is almost immediately sent after SIGTERM, effectively ignoring the value of MCA `odls_base_sigkill_timeout`. When running in single process mode signal hadling works normally.
+On OpenMPI 2.x termination through signals (SIGTERM/SIGINT) does not terminate the MPI processes gracefully because SIGKILL is almost immediately sent after SIGTERM, effectively ignoring the value of MCA `odls_base_sigkill_timeout`. When running in single process mode signal hadling works normally.
+
+In the CPU implementation of the DNLS model the complex exponential is not properly vectorized by GCC as of version 8.3 . As a workaround, 

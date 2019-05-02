@@ -11,4 +11,4 @@ ARG optimized_chain_length=DEFINE_ME_PLEASE
 RUN [[ $optimized_chain_length -ge 32 ]] || { echo "Please use --build-arg optimized_chain_length=## with ## a number larger than 32, see README.md for more info." && exit 1; }
 RUN cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_CUDA_FLAGS="-gencode arch=compute_35,code=sm_35 -gencode arch=compute_60,code=sm_60 -gencode arch=compute_70,code=sm_70" -Doptimized_chain_length=$optimized_chain_length /tmp/nlchains
 RUN make -j
-RUN cp nlchains /usr/bin/nlchains
+RUN cp nlchains /usr/bin/nlchains-$optimized_chain_length
