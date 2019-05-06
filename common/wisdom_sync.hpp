@@ -16,7 +16,7 @@ struct wisdom_sync {
 	void add_options(boost::program_options::options_description &options) {
 		options.add_options()
 				("wisdom_mode", boost::program_options::value(&wisdom_mode)->default_value(default_mode),
-				 "Mode for wisdom syncing across MPI processes: \"sync\" calculates wisdom once and propagates to all processes, \"node\" does not propagate wisdom, other values are interpreted as filenames to read wisdom from");
+				 "Mode for wisdom syncing across MPI processes: \"sync\" calculates wisdom once and propagates to all processes, \"none\" does not propagate wisdom, other values are interpreted as filenames to read wisdom from");
 	}
 
 	void gather() const {

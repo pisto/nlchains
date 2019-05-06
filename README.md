@@ -1,6 +1,6 @@
 # nlchains
 
-An implementation of the 6th order Yoshida symplectic integration algorithm for a number of models. The implementation is suited to run a large ensemble of realizations of these models. The program also calculates the average energy per linear mode, and the associated information entropy to monitor the route to thermalization due to the nonlinearity. Since the integration is symplectic, there is no support for forcing or dissipation.
+An implementation of the 6th order Yoshida symplectic integration algorithm for a number of models. The implementation is suited to run a large ensemble of realizations of these models on GPU hardware. A CPU version is also provided for testing and validation. The program also calculates the average energy per linear mode, and the associated information entropy to monitor the route to thermalization due to the nonlinearity. Since the integration is symplectic, there is no support for forcing or dissipation.
 
 Supported models:
 
@@ -22,7 +22,7 @@ Supported models:
 
 This software has been tested primarily on CUDA 9.0 and K40 devices on Linux. It is expected to work on later CUDA toolchains and GPU architectures. Mac has not been tested but it should in theory work. Windows is not supported, because cuFFT callbacks are used and they are not available in Windows.
 
-The build prerequisites are: [CMake](https://cmake.org/) (>=3.9), MPI (minimum MPI-2, Open MPI 2.x has been tested), [Boost](https://www.boost.org/) (Boost.Program_options, Boost.MPI), [Armadillo](http://arma.sourceforge.net/). From the CUDA Toolkit, we use cuFFT and cuBLAS. For an Ubuntu environment, the requires packages should be `libarmadillo-dev libboost-mpi-dev libboost-program-options-dev cmake`, while for a Fedora environment they should be `armadillo-devel boost-openmpi-devel cmake openmpi-devel`.
+The build prerequisites are: [CMake](https://cmake.org/) (>=3.9), MPI (minimum MPI-2, Open MPI 2.x has been tested), [Boost](https://www.boost.org/) (Boost.Program_options, Boost.MPI), [Armadillo](http://arma.sourceforge.net/). From the CUDA Toolkit, we use cuFFT and cuBLAS. For an Ubuntu environment, the requires packages should be `libarmadillo-dev libboost-mpi-dev libboost-program-options-dev cmake pkg-config libfftw3-dev`, while for a Fedora environment they should be `armadillo-devel boost-openmpi-devel cmake make openmpi-devel fftw3-devel`.
 
 ## Building with Docker
 
@@ -48,7 +48,7 @@ cd build
 cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_CUDA_FLAGS="-gencode arch=compute_35,code=sm_35 -gencode arch=compute_60,code=sm_60 -gencode arch=compute_70,code=sm_70" -Doptimized_chain_length=XX ..
 make -j
 ```
-Please note that the parameter `-Doptimized_chain_length=XX` with XX some number greater than 32 is necessary, because some optimized versions of the kernels need to be generated with a compile-time constant of the intendend value of the chain length. The generated binary can run any other value of the chain length, but without any specific optimization. For more information read section [Performance considerations](#performance-considerations).
+See the previous section for an explanation of the `-Doptimized_chain_length=XX` argument.
 
 Other relevant CMake flags (`-DFlag=Value`) are listed in the table below.
 
@@ -117,15 +117,25 @@ A typical invocation of `nlchains` to run on two GPUs looks like this:
 mpirun -n 2 nlchains FPUT -v -p alpha-N128-alpha1 -i alpha-N128 -n 128 -c 4096 --WTlimit -e 0.05 --dt 0.1 -k 10000 --dumpsteps 1000000 --alpha 1 --beta 0
 ```
 
-# Software internals
-
-In order to help the user interested in adding or modifying the models implemented in nlchains, here are a few notes on the software structure. In the folder [common/](common/) there is the logic that is common to all models: MPI environment setup, common argument parsing, GPU setup, symplectic integration coefficients, etc. Subprograms are expected to add themselves to the map returned by `::programs()` `::main` runs (see the macro `::ginit` in [common/utilities.hpp](common/utilities.hpp)). The helper struct `::parse_cmdline` can be used to parse the command line, and by default it contains the definition of the common command line options. The actual values of the options are stored after parsing in the global variable `::gconf`, and `::gres` contains host and device buffers to accomodate the shard of the ensemble that is owned by the current MPI process. The struct `::results` contains facilities to calculate the linear energies per mode through MPI reduction operations, calculate the entropy, and write the dump files. The folders [DNKG_FPUT_Toda/](DNKG_FPUT_Toda/), [dDNKG/](dDNKG/) and [DNLS/](DNLS/) contain the actual implementation of the predefined models. Each of these folders contain a .cpp source file with most of the host-side logic, and a .cu source file with the GPU kernel. The DNKG, FPUT and Toda models differ only by the actual equation of motion, hence they are implemented as different class templates in the same folder.
-
-## Performance considerations
+# Performance considerations
 
 The compile flag `-Doptimized_chain_length=XX` and the command line option `--split_kernel` are relevant for all models except `DNLS`. There are internally three GPU implementations of each of these models: one specialized for `--chain_length` less than 32, one optimized for the value passed to `optimized_chain_length`, and one generic. The generic version is referred to as the "split kernel" version. The split kernel is the slowest one because every nonlinear chain element update causes a read from memory, but it is flexible, and works with very large values of `--chain_length`. The other two are much more optimized since they keep the whole chain state in registers rather than memory. It is advised to recompile `nlchains` with a different value of `optimized_chain_length` for each target `--chain_length` that you plan to use. If `nlchains` cannot find the optimized version, it will fallback to the split kernel version, generating a warning.
 
 The command line options `--no_linear_callback` and `--no_nonlinear_callback` are relevant to the `DNLS` model. Since the integration amounts to a large number of FFTs, it is generally useful to use the cuFFT feature of FFT callbacks, and embed the linear/nonlinear evolution of the chain in the load phase of the FFTs. However, in my experience the cuFFT callbacks can on the contrary lead to a performance hit in some circumstances. By default, `nlchains` uses them, but you should experiment with these flags and see what is best suited for you. Do not forget to set the clocks of your card to the maximum available with `nvidia-smi` first!
+
+# CPU implementation
+
+A CPU implementation is provided for validation of the results of the GPU implementation. The code makes use of [recent features](https://lwn.net/Articles/691932/) of GCC in order to automatically vectorize the most computationally intensive loops. The CPU subprogram are accessible as `DNKG-cpu`, `FPUT-cpu` etc., and they have the same arguments as their GPU counterparts (except of course arguments that specify details of the GPU implementation). A CPU-only binary can be built with `make nlchains-cpu`. Note however that the CUDA SDK is still needed for building, though `nlchains-cpu` has no runtime dependencies on it.
+
+The Discrete Fourier Transform implementation is provided by [fftw3](http://www.fftw.org/). fftw3 has a system of "wisdom", that is the implementation details are determined at runtime based on the specifications of the machine where the code is being run. There is no guarantee that this process of computing the wisdom is repeatable, and this can lead to slightly different numerical result across runs, or across different MPI processes. To mitigate this situation, it is possible to chose among three wisdom modes:
+```
+  --wisdom_mode arg             Mode for wisdom syncing across MPI processes: 
+                                "sync" calculates wisdom once and propagates to
+                                all processes, "none" does not propagate 
+                                wisdom, other values are interpreted as 
+                                filenames to read wisdom from
+```
+For the DNKG, FPUT and Toda models where the DFT is used only for the linear energy calculation the default mode is "none". For the DNLS model where the DFT is part of the time marching algorithm the default mode is "sync". The wisdom string is printed when `nlchains` is launched in verbose mode (`-v`): this way the string can be copied into a file, which can be successively loaded with the argument `--wisdom_mode <filename>`. Note that the fftw wisdom is very sensitive to the DFT size and the host environment, including the affinity set for each process. If the wisdom is read from a file, `nlchains` requires that fftw actually uses the specified wisdom, and so the program can fail if fftw signals that the current wisdom cannot be used for the requested DFT algorithm.
 
 # Known bugs
 
@@ -141,4 +151,4 @@ When run interactively, the program may not close gracefully by interrupting it,
 
 On OpenMPI 2.x termination through signals (SIGTERM/SIGINT) does not terminate the MPI processes gracefully because SIGKILL is almost immediately sent after SIGTERM, effectively ignoring the value of MCA `odls_base_sigkill_timeout`. When running in single process mode signal hadling works normally.
 
-In the CPU implementation of the DNLS model the complex exponential is not properly vectorized by GCC as of version 8.3 . As a workaround, 
+In the CPU implementation of the DNLS model the complex exponential (`sincos(angle)`) is not properly vectorized by GCC as of version 8.3 . As a workaround, the relation `|sin(angle)| = sqrt(1 - cos(angle) ^ 2)` plus a sign fix is used, becuase `cos(angle)` and `sqrt(x)` are individually vectorized.
