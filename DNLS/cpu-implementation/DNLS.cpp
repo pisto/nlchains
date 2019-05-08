@@ -32,7 +32,7 @@ namespace DNLS {
 				parse_cmdline parser("Options for "s + argv[0]);
 				parser.options.add_options()("beta", value(&beta)->required(), "fourth order nonlinearity");
 				wsync.add_options(parser.options);
-				parser(argc, argv);
+				parser.run(argc, argv);
 			}
 
 			auto omega = dispersion();

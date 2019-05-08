@@ -29,7 +29,7 @@ namespace dDNKG {
 				parser.options.add_options()
 						(",m", value(&m_fname)->required(), "linear parameter m filename")
 						("beta", value(&beta)->required(), "fourth order nonlinearity");
-				parser(argc, argv);
+				parser.run(argc, argv);
 
 				mp2_arma.resize(gconf.chain_length);
 				try {

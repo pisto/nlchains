@@ -41,7 +41,7 @@ namespace DNKG_FPUT_Toda {
 					break;
 			}
 			parser.options.add_options()("split_kernel", "force use of split kernel");
-			parser(argc, argv);
+			parser.run(argc, argv);
 			split_kernel = parser.vm.count("split_kernel");
 		}
 		auto ctx = cuda_ctx.activate(mpi_node_coord);

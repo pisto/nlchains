@@ -50,15 +50,16 @@ struct parse_cmdline {
 
 	parse_cmdline(const std::string &name);
 
-	void operator()(int argc, char *argv[]);
+	void run(int argc, char *argv[]);
 
-	std::string initial_filename, entropymask_filename;
 	/*
 	 * Throw this to terminate gracefully and print the boost options.
 	 */
 	struct help_quit {
 		const boost::program_options::options_description options;
 	};
+private:
+	std::string initial_filename, entropymask_filename;
 };
 
 

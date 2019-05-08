@@ -69,7 +69,7 @@ parse_cmdline::parse_cmdline(const string &name) : options(name) {
 			 "number of steps between full state dumps (defaults to same value as --batch, does not affect time granularity of entropy)");
 }
 
-void parse_cmdline::operator()(int argc, char *argv[]) try {
+void parse_cmdline::run(int argc, char *argv[]) try {
 	if (argc == 1) throw help_quit{options};
 	try {
 		store(boost::program_options::parse_command_line(argc, argv, options), vm);

@@ -36,7 +36,7 @@ namespace boost {
 		protected:
 			exception_location(const record &r, int result_code) :
 					exception("<unknown routine>", result_code){
-				message = "@" + r.file_line + " MPI errcode" + std::to_string(result_code) + " : " + message;
+				message = "@" + r.file_line + " MPI errcode " + std::to_string(result_code) + ": " + message;
 			}
 
 			friend void operator&&(int result_code, exception_location::record &&p);

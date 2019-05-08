@@ -65,7 +65,7 @@ namespace DNKG_FPUT_Toda {
 						break;
 				}
 				wsync.add_options(parser.options);
-				parser(argc, argv);
+				parser.run(argc, argv);
 				if (model == Toda) alpha2 = 2 * alpha, alpha2_inv = 1 / alpha2;
 			}
 

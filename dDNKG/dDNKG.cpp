@@ -32,7 +32,7 @@ namespace dDNKG {
 					(",m", value(&m_fname)->required(), "linear parameter m filename")
 					("beta", value(&beta)->required(), "fourth order nonlinearity")
 					("split_kernel", "force use of split kernel");
-			parser(argc, argv);
+			parser.run(argc, argv);
 			split_kernel = parser.vm.count("split_kernel");
 
 			mp2_host.resize(gconf.chain_length);

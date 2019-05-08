@@ -35,7 +35,7 @@ namespace DNLS {
 					("no_linear_callback", "do not use cuFFT callback for linear evolution")
 					("no_nonlinear_callback", "do not use cuFFT callback for nonlinear evolution")
 					("beta", value(&beta)->required(), "fourth order nonlinearity");
-			parser(argc, argv);
+			parser.run(argc, argv);
 			no_linear_callback = parser.vm.count("no_linear_callback");
 			no_nonlinear_callback = parser.vm.count("no_nonlinear_callback");
 		}
