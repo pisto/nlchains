@@ -271,11 +271,9 @@ private:
 
 struct completion {
 
-	unsigned int flags = 0;
+	completion() = default;
 
-	completion(unsigned int flags = cudaEventDisableTiming): flags(flags) {}
-
-	explicit completion(cudaStream_t stream, unsigned int flags = cudaEventDisableTiming): completion(flags) {
+	explicit completion(cudaStream_t stream) {
 		record(stream);
 	}
 
@@ -318,7 +316,7 @@ private:
 
 	void newevent() {
 		delevent();
-		cudaEventCreateWithFlags(&event, flags) && assertcu;
+		cudaEventCreateWithFlags(&event, cudaEventDisableTiming) && assertcu;
 	}
 
 	cudaEvent_t event = 0;
