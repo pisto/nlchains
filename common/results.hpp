@@ -14,35 +14,41 @@
 struct results {
 	const bool a0is0;   //first mode has 0 frequency
 	std::vector<double> linenergies;    //linear energies reduction
+	double WTentropy, INFentropy;
 
 	results(bool a0is0);
 
 	/*
-	 * Reduce the linear energies for each processes, and return the WT and information entropies.
-	 * norm_factor can be used to normalize the linear energies if the calcualtion on the GPU
+	 * Reduce the linear energies for each processes, and store the result in linenergies.
+	 * norm_factor can be used to normalize the linear energies if the calculation on the GPU
 	 * returns values with a costant multiplicative factor. It should be the same on all MPI processes.
 	 */
-	std::array<double, 2> entropies(const double *shard_linenergies, double norm_factor = 1.);
+	results &calc_linenergies(double norm_factor = 1.);
+
+	/*
+	 * Calculate the WT and information entropies.
+	 */
+	results &calc_entropies();
 
 	/*
 	 * Write the entropies to the dump file. All processes can call it but only the process 0 will actually write it.
 	 */
-	void write_entropy(uint64_t t, const std::array<double, 2> &entropies) const;
+	const results &write_entropy(uint64_t t) const;
 
 	/*
 	 * Write the linearg energies to the dump file. All processes can call it but only the process 0 will actually write it.
 	 */
-	void write_linenergies(uint64_t t) const;
+	const results &write_linenergies(uint64_t t) const;
 
 	/*
 	 * Write the full ensemble state shard. This is an MPI collective call.
 	 */
-	void write_shard(uint64_t t, const double2 *shard) const;
+	const results &write_shard(uint64_t t) const;
 
 	/*
 	 * Check the entropy agains the user limit, and set quit_requested if necessary. This is an MPI collective call.
 	 */
-	void check_entropy(const std::array<double, 2> &entropies) const;
+	const results &check_entropy() const;
 
 private:
 	mutable std::ofstream entropydump;

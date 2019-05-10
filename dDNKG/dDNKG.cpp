@@ -136,12 +136,8 @@ namespace dDNKG {
 			                  [&, full_dump, t = *loop_ctl](cudaError_t status) {
 				                  if (loop_ctl.callback_err) return;
 				                  status && assertcu;
-				                  auto entropies = res.entropies(gres.linenergies_host, 0.5 / gconf.shard_copies);
-				                  res.check_entropy(entropies);
-				                  res.write_entropy(t, entropies);
-				                  if (!full_dump) return;
-				                  res.write_linenergies(t);
-				                  res.write_shard(t, gres.shard_host);
+				                  res.calc_linenergies(0.5 / gconf.shard_copies).calc_entropies().check_entropy().write_entropy(t);
+				                  if (full_dump) res.write_linenergies(t).write_shard(t);
 			                  });
 			completion done_results(streams[s_results]);
 			done_results.blocks(streams[s_dump]);
@@ -161,7 +157,7 @@ namespace dDNKG {
 			completion(streams[s_entropy]).wait();
 			res.write_linenergies(loop_ctl);
 			completion(streams[s_dump]).wait();
-			res.write_shard(loop_ctl, gres.shard_host);
+			res.write_shard(loop_ctl);
 		}
 		return 0;
 	}

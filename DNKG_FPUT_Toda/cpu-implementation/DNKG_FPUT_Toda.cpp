@@ -112,13 +112,8 @@ namespace DNKG_FPUT_Toda {
 
 			loop_control loop_ctl(gconf.time_offset);
 			while (1) {
-				auto entropies = res.entropies(gres.linenergies_host, (0.5 / gconf.shard_copies) / gconf.chain_length);
-				res.check_entropy(entropies);
-				res.write_entropy(loop_ctl, entropies);
-				if (loop_ctl % gconf.dump_interval == 0) {
-					res.write_shard(loop_ctl, gres.shard_host);
-					res.write_linenergies(loop_ctl);
-				}
+				res.calc_linenergies((0.5 / gconf.shard_copies) / gconf.chain_length).calc_entropies().check_entropy().write_entropy(loop_ctl);
+				if (loop_ctl % gconf.dump_interval == 0) res.write_linenergies(loop_ctl).write_shard(loop_ctl);
 
 				if (loop_ctl.break_now()) break;
 
@@ -151,10 +146,7 @@ namespace DNKG_FPUT_Toda {
 				loop_ctl += gconf.kernel_batching;
 			}
 
-			if (loop_ctl % gconf.dump_interval != 0) {
-				res.write_shard(loop_ctl, gres.shard_host);
-				res.write_linenergies(loop_ctl);
-			}
+			if (loop_ctl % gconf.dump_interval != 0) res.write_linenergies(loop_ctl).write_shard(loop_ctl);
 			return 0;
 
 		}

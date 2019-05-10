@@ -9,16 +9,18 @@ using namespace std;
  */
 
 make_simd_clones("default,avx,avx512f")
-array<double, 2> results::entropies(const double *shard_linenergies, double norm_factor) {
-	//XXX the in-place version always generates an assertion?
-	boost::mpi::all_reduce(mpi_global_results, shard_linenergies, gconf.chain_length, linenergies.data(), plus<double>());
-
-	double totale = 0, totalloge = 0, totaleloge = 0, linenergy_normalization = norm_factor / mpi_global_size;
+results &results::calc_linenergies(double norm_factor) {
+	boost::mpi::all_reduce(mpi_global_results, gres.linenergies_host, gconf.chain_length, linenergies.data(), plus<double>());
 	if (a0is0) linenergies[0] = 0;
-	//this helps g++ vectorize the following loops, maybe other compilers as well
+	double linenergy_normalization = norm_factor / mpi_global_size;
 	openmp_simd
 	for (uint16_t i = 0; i < gconf.chain_length; i++) linenergies[i] *= linenergy_normalization;
-	double *modes;
+	return *this;
+}
+
+make_simd_clones("default,avx,avx512f")
+results &results::calc_entropies() {
+	double totale = 0, totalloge = 0, totaleloge = 0, *modes;
 	uint16_t modes_tot;
 	if (entropy_modes_indices.empty()) {
 		modes = linenergies.data() + a0is0;
@@ -38,5 +40,7 @@ array<double, 2> results::entropies(const double *shard_linenergies, double norm
 	}
 	double normalization = modes_tot / totale, lognormalization = log(normalization);
 	//{ sum(log(e'(k))), sum(e'(k)log(e'(k))) }, with e'(k) = total_modes/linear_energy_total*linear_energy(k)
-	return {-(totalloge + modes_tot * lognormalization), normalization * (totaleloge + lognormalization * totale)};
+	WTentropy = -(totalloge + modes_tot * lognormalization);
+	INFentropy = normalization * (totaleloge + lognormalization * totale);
+	return *this;
 }

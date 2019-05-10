@@ -18,52 +18,50 @@ results::results(bool a0is0) : a0is0(a0is0), linenergies(gconf.chain_length),
 	entropydump.exceptions(ios::eofbit | ios::failbit | ios::badbit);
 }
 
-void results::write_entropy(uint64_t t, const array<double, 2> &entropies) const {
-	if (mpi_global_coord) return;
-	double entropyinfo[]{t * gconf.dt, entropies[0], entropies[1]};
+const results &results::write_entropy(uint64_t t) const {
+	if (mpi_global_coord) return *this;
+	double entropyinfo[]{t * gconf.dt, WTentropy, INFentropy};
 	entropydump.write((char *) &entropyinfo, sizeof(entropyinfo)).flush();
 	if (gconf.verbose)
 		collect_ostream(cout) << "Entropy step " << t << ": " << entropyinfo[1] << '/' << entropyinfo[2] << endl;
+	return *this;
 }
 
-void results::write_linenergies(uint64_t t) const {
-	if (mpi_global_coord) return;
+const results &results::write_linenergies(uint64_t t) const {
+	if (mpi_global_coord) return *this;
 	ofstream linenergies_dump(linenergies_template + to_string(t));
 	linenergies_dump.exceptions(ios::eofbit | ios::failbit | ios::badbit);
 	linenergies_dump.write((char *) linenergies.data(), gconf.sizeof_linenergies);
+	return *this;
 }
 
-void results::write_shard(uint64_t t, const double2 *shard) const {
+const results &results::write_shard(uint64_t t) const {
 	auto dumpname = gconf.dump_prefix + "-";
 	dumpname += to_string(t);
 	if (mpi_global_size == 1) {
 		//avoid requesting a file lock
 		ofstream dump(dumpname);
 		dump.exceptions(ios::eofbit | ios::failbit | ios::badbit);
-		dump.write((char *) shard, gconf.sizeof_shard);
-		return;
+		dump.write((char *) gres.shard_host, gconf.sizeof_shard);
+		return *this;
 	}
 	MPI_File dump_mpif;
 	MPI_File_open(mpi_global_results, dumpname.c_str(), MPI_MODE_WRONLY | MPI_MODE_CREATE, MPI_INFO_NULL, &dump_mpif) &&
 	assertmpi;
 	destructor([&] { MPI_File_close(&dump_mpif); });
 	MPI_File_set_size(dump_mpif, gconf.sizeof_shard * mpi_global_size) && assertmpi;
-	MPI_File_write_ordered(dump_mpif, shard, gconf.shard_elements * 2, MPI_DOUBLE, MPI_STATUS_IGNORE) && assertmpi;
+	MPI_File_write_ordered(dump_mpif, gres.shard_host, gconf.shard_elements * 2, MPI_DOUBLE, MPI_STATUS_IGNORE) && assertmpi;
+	return *this;
 }
 
-void results::check_entropy(const array<double, 2> &entropies) const {
-	if (!isfinite(entropies[0]) || !isfinite(entropies[1])) {
+const results &results::check_entropy() const {
+	if (!isfinite(WTentropy) || !isfinite(INFentropy)) {
 		//this happens when we have blow ups or some energies extremely close to zero
 		quit_requested = true;
-		return;
+		return *this;
 	}
-	switch (gconf.entropy_limit_type) {
-		case configuration::NONE:
-			return;
-		case configuration::WT:
-			if (entropies[0] >= gconf.entropy_limit) return;
-		case configuration::INFORMATION:
-			if (entropies[1] >= gconf.entropy_limit) return;
-	}
-	quit_requested = true;
+	if (gconf.entropy_limit_type == configuration::NONE) return *this;
+	auto checked_entropy = gconf.entropy_limit_type == configuration::WT ? WTentropy : INFentropy;
+	if (checked_entropy < gconf.entropy_limit) quit_requested = true;
+	return *this;
 }
