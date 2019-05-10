@@ -1,4 +1,5 @@
 #include <cstring>
+#include <stdexcept>
 #include <cuda_runtime.h>
 #include "configuration.hpp"
 #include "mpi_environment.hpp"
@@ -10,14 +11,14 @@ using namespace std;
 cuda_ctx_t cuda_ctx;
 
 cuda_ctx_t::cuda_ctx_raii cuda_ctx_t::activate(int id) {
-
+	if (this->id >= 0) throw logic_error("CUDA context is already active");
 	cudaSetDevice(id) && assertcu;
 	cuda_ctx_t::cuda_ctx_raii raii;
 	this->id = id;
 	cudaHostRegister(gres.linenergies_host, gconf.sizeof_linenergies, cudaHostRegisterDefault) && assertcu;
 	cudaHostGetDevicePointer(&gres.linenergies_gpu, gres.linenergies_host, 0) && assertcu;
 	cudaHostRegister(gres.shard_host, gconf.sizeof_shard, cudaHostRegisterDefault) && assertcu;
-	gres.shard_gpu = shard_buffer_gpu = gconf.shard_elements;
+	gres.shard_gpu = raii.shard_buffer_gpu = gconf.shard_elements;
 	cudaMemcpy(gres.shard_gpu, gres.shard_host, gconf.sizeof_shard, cudaMemcpyHostToDevice) && assertcu;
 
 	cudaGetDeviceProperties(&dev_props, id) && assertcu;
@@ -27,11 +28,12 @@ cuda_ctx_t::cuda_ctx_raii cuda_ctx_t::activate(int id) {
 }
 
 cuda_ctx_t::cuda_ctx_raii::~cuda_ctx_raii() {
-	if (!active) return;
+	if (!shard_buffer_gpu) return;
 	cudaDeviceSynchronize() && assertcu;
 	cudaHostUnregister(gres.linenergies_host);
 	gres.linenergies_gpu = 0;
 	cudaHostUnregister(gres.shard_host);
+	{ auto move_out = move(shard_buffer_gpu); }
 	gres.shard_gpu = 0;
 	cuda_ctx = cuda_ctx_t();
 	cudaDeviceReset();

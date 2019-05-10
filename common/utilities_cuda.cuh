@@ -360,28 +360,23 @@ void add_cuda_callback(cudaStream_t stream, std::exception_ptr &callback_err, L 
  */
 
 extern struct cuda_ctx_t {
-	int id = -1;
 	cudaDeviceProp dev_props;
 
 	struct cuda_ctx_raii {
-		cuda_ctx_raii(cuda_ctx_raii &&o) { o.active = false; }
-
-		void operator=(cuda_ctx_raii &&o) { o.active = false; };
-
+		cuda_ctx_raii(cuda_ctx_raii &&o) { shard_buffer_gpu = std::move(o.shard_buffer_gpu); }
 		~cuda_ctx_raii();
 
 	private:
 		friend struct cuda_ctx_t;
-		bool active = true;
+		cudalist<double2> shard_buffer_gpu;
 
 		cuda_ctx_raii() = default;
-
 	};
 
 	cuda_ctx_raii activate(int id);
 
 private:
-	cudalist<double2> shard_buffer_gpu;
+	int id = -1;
 } cuda_ctx;
 
 /*
