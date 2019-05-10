@@ -388,7 +388,7 @@ private:
  * Helper class to print runtime optimization hints about kernels.
  * Use as
  *      static auto your_kernel_info = make_kernel_info(your_kernel);
- * If your kernel has a 1D structure, you can call linear_configuration(elements, print_verbose) to get the optimal
+ * If your kernel has a 1D structure, you can call linear_configuration(elements) to get the optimal
  * block/grid size.
  */
 
