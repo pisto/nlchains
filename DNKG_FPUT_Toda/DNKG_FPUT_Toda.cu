@@ -256,24 +256,21 @@ namespace DNKG_FPUT_Toda {
 	template<Model model>
 	completion move(plane2split *&splitter, cudaStream_t stream) {
 		if (splitter) {
-			static auto kinfo = make_kernel_info_name(move_split<model>,
-			                                          std::string("move_split<") + std::to_string(int(model)) + ">");
-			auto linear_config = kinfo.linear_configuration(gconf.shard_copies);
-			kinfo.k <<< linear_config.x, linear_config.y, 0, stream >>>
-			        (splitter->real_transposed, splitter->img_transposed, gconf.chain_length, gconf.shard_copies,
+			static auto kinfo = make_kernel_info(move_split<model>, "move_split");
+			auto launch = kinfo.linear_configuration(gconf.shard_copies);
+			kinfo.k <<< launch.blocks, launch.threads, 0, stream >>>
+			        (splitter->coords_transposed, splitter->momenta_transposed, gconf.chain_length, gconf.shard_copies,
 			         gconf.kernel_batching);
 		} else {
 			if (gconf.chain_length < 32) {
 				auto &kinfo = thread_kernel_resolver<model>::get(gconf.chain_length);
-				auto linear_config = kinfo.linear_configuration(gconf.shard_copies);
-				kinfo.k <<< linear_config.x, linear_config.y, 0, stream >>>
+				auto launch = kinfo.linear_configuration(gconf.shard_copies);
+				kinfo.k <<< launch.blocks, launch.threads, 0, stream >>>
 				        (gres.shard_gpu, gconf.kernel_batching, gconf.shard_copies);
 			} else if (gconf.chain_length == optimized_chain_length) {
-				static auto kinfo = make_kernel_info_name(move_chain_in_warp<model>,
-				                                          std::string("move_chain_in_warp<") +
-				                                          std::to_string(int(model)) + ">");
-				auto linear_config = kinfo.linear_configuration(uint32_t(gconf.shard_copies) * 32);
-				kinfo.k <<< linear_config.x, linear_config.y, 0, stream >>>
+				static auto kinfo = make_kernel_info(move_chain_in_warp<model>, "move_chain_in_warp");
+				auto launch = kinfo.linear_configuration(uint32_t(gconf.shard_copies) * 32);
+				kinfo.k <<< launch.blocks, launch.threads, 0, stream >>>
 				        (gres.shard_gpu, gconf.kernel_batching, gconf.shard_copies);
 			} else {
 				static bool warned = false;
@@ -284,8 +281,8 @@ namespace DNKG_FPUT_Toda {
 					                           << gconf.chain_length << " and recompile." << std::endl;
 					warned = true;
 				}
-				splitter = new plane2split(gconf.chain_length, gconf.shard_copies);
-				splitter->split(gres.shard_gpu, stream);
+				splitter = new plane2split;
+				splitter->split(stream);
 				return move<model>(splitter, stream);
 			}
 		}
@@ -320,8 +317,8 @@ namespace DNKG_FPUT_Toda {
 	completion
 	make_linenergies(const double2 *fft_phis, const double2 *fft_pis, const double *omegas, cudaStream_t stream) {
 		static auto kinfo = make_kernel_info(make_linenergies_kernel);
-		auto linear_config = kinfo.linear_configuration(gconf.chain_length);
-		kinfo.k <<< linear_config.x, linear_config.y, 0, stream >>>
+		auto launch = kinfo.linear_configuration(gconf.chain_length);
+		kinfo.k <<< launch.blocks, launch.threads, 0, stream >>>
 		        (gconf.chain_length, gconf.shard_copies, gres.linenergies_gpu, fft_phis, fft_pis, omegas);
 		cudaGetLastError() && assertcu;
 		return completion(stream);

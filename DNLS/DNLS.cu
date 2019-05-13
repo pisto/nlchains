@@ -26,8 +26,8 @@ namespace DNLS {
 
 	completion evolve_nonlinear(double beta_dt_symplectic, cudaStream_t stream) {
 		static auto kinfo = make_kernel_info(evolve_nonlinear_kernel);
-		auto linear_config = kinfo.linear_configuration(gconf.shard_elements);
-		kinfo.k <<< linear_config.x, linear_config.y, 0, stream >>>
+		auto launch = kinfo.linear_configuration(gconf.shard_elements);
+		kinfo.k <<< launch.blocks, launch.threads, 0, stream >>>
 		        (gconf.shard_elements, gres.shard_gpu, beta_dt_symplectic);
 		cudaGetLastError() && assertcu;
 		return completion(stream);
@@ -35,8 +35,8 @@ namespace DNLS {
 
 	completion evolve_linear(const cufftDoubleComplex *evolve_linear_table, cudaStream_t stream) {
 		static auto kinfo = make_kernel_info(evolve_linear_kernel);
-		auto linear_config = kinfo.linear_configuration(gconf.shard_elements);
-		kinfo.k <<< linear_config.x, linear_config.y, 0, stream >>>
+		auto launch = kinfo.linear_configuration(gconf.shard_elements);
+		kinfo.k <<< launch.blocks, launch.threads, 0, stream >>>
 		        (gconf.shard_elements, gconf.chain_length, gres.shard_gpu, evolve_linear_table);
 		cudaGetLastError() && assertcu;
 		return completion(stream);
@@ -82,8 +82,8 @@ namespace DNLS {
 
 	completion make_linenergies(const cufftDoubleComplex *psis_k, const double *omega, cudaStream_t stream) {
 		static auto kinfo = make_kernel_info(make_linenergies_kernel);
-		auto linear_config = kinfo.linear_configuration(gconf.chain_length);
-		kinfo.k <<< linear_config.x, linear_config.y, 0, stream >>>
+		auto launch = kinfo.linear_configuration(gconf.chain_length);
+		kinfo.k <<< launch.blocks, launch.threads, 0, stream >>>
 		        (gconf.shard_copies, gconf.chain_length, psis_k, omega, gres.linenergies_gpu);
 		cudaGetLastError() && assertcu;
 		return completion(stream);

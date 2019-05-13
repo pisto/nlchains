@@ -89,8 +89,8 @@ namespace DNKG_FPUT_Toda {
 		 */
 		plane2split *splitter = 0;
 		if (split_kernel) {
-			splitter = new plane2split(gconf.chain_length, gconf.shard_copies);
-			splitter->split(gres.shard_gpu, streams[s_move]);
+			splitter = new plane2split;
+			splitter->split(streams[s_move]);
 		}
 		destructor([&] { delete splitter; });
 
@@ -104,7 +104,7 @@ namespace DNKG_FPUT_Toda {
 		};
 		destructor(cudaDeviceSynchronize);
 		while (1) {
-			if (splitter) splitter->plane(gres.shard_gpu, streams[s_move], streams[s_dump]).blocks(streams[s_entropy]);
+			if (splitter) splitter->plane(streams[s_move], streams[s_dump]).blocks(streams[s_entropy]);
 			bool full_dump = loop_ctl % gconf.dump_interval == 0;
 			if (full_dump) dumper();
 			//entropy stream is already synced to move or dump stream, that is the readiness of the planar representation

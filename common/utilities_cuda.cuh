@@ -387,25 +387,21 @@ private:
  * block/grid size.
  */
 
-#define make_kernel_info_name(k, name) kernel_info<decltype(&k)>(k, name)
-#define make_kernel_info(k) make_kernel_info_name(k, #k)
-
-#include <iostream>
-#include <sstream>
-
 struct kernel_info_base {
 	std::string kname;
 	cudaFuncAttributes kernel_attrs;
 
-	int2 linear_configuration(size_t elements) const;
+	struct kernel_config {
+		int blocks, threads;
+	};
 
-private:
-	template<typename Kernel> friend
-	struct kernel_info;
+	kernel_config linear_configuration(size_t elements) const;
+
+protected:
 	mutable bool printed_info;
-	const void *k;
+	const void *k_type_erased;
 
-	kernel_info_base(const void *k, std::string kname) : k(k), kname(std::move(kname)) {
+	kernel_info_base(const void *k, std::string kname) : k_type_erased(k), kname(std::move(kname)) {
 		cudaFuncGetAttributes(&kernel_attrs, k) && assertcu;
 	}
 
@@ -419,12 +415,19 @@ struct kernel_info : kernel_info_base {
 	kernel_info(Kernel k, const std::string &kname) : kernel_info_base((const void *)k, kname), k(k) {}
 };
 
+template<typename Kernel>
+auto make_kernel_info(Kernel k, const std::string &kname_preprocessor, const std::string &kname = std::string()) {
+	return kernel_info<Kernel>(k, kname.empty() ? kname_preprocessor : kname);
+}
+
+#define make_kernel_info(k, ...) make_kernel_info(k, #k, ##__VA_ARGS__)
+
 /*
  * Move from planar (copy, chain index, real/img indexes) to split (real/img, chain, copy) representations of the chains.
  */
 
 struct plane2split {
-	plane2split(uint16_t chainlen, uint16_t shard_copies);
+	plane2split();
 
 	~plane2split() { cublasDestroy(handle); }
 
@@ -435,18 +438,16 @@ struct plane2split {
 	 * synchronizes to the second.
 	 */
 
-	completion split(const double2 *planar, cudaStream_t producer, cudaStream_t consumer);
+	completion split(cudaStream_t producer, cudaStream_t consumer);
 
-	completion split(const double2 *planar, cudaStream_t stream = 0) { return split(planar, stream, stream); }
+	completion split(cudaStream_t stream) { return split(stream, stream); }
 
-	completion plane(double2 *planar, cudaStream_t producer, cudaStream_t consumer) const;
+	completion plane(cudaStream_t producer, cudaStream_t consumer) const;
 
-	completion plane(double2 *planar, cudaStream_t stream = 0) const { return plane(planar, stream, stream); }
+	completion plane(cudaStream_t stream) const { return plane(stream, stream); }
 
-	const uint16_t chainlen, shard_copies;
-	const uint32_t elements;
-	const cudalist<double> real_transposed;
-	double *const img_transposed;
+	const cudalist<double> coords_transposed;
+	double *const momenta_transposed;
 private:
 	cudalist<double2> planar_transposed;
 	cublasHandle_t handle = 0;

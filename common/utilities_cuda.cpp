@@ -39,7 +39,7 @@ cuda_ctx_t::cuda_ctx_raii::~cuda_ctx_raii() {
 	cudaDeviceReset();
 }
 
-int2 kernel_info_base::linear_configuration(size_t elements) const {
+kernel_info_base::kernel_config kernel_info_base::linear_configuration(size_t elements) const {
 	int grid_size, block_size;
 	//all device have max threads = 2048, CC > 3 can have 64 resident blocks instead of 32
 	for (int max_block_size = cuda_ctx.dev_props.major > 3 ? 64 : 128; max_block_size; max_block_size -= 32) {
@@ -48,7 +48,7 @@ int2 kernel_info_base::linear_configuration(size_t elements) const {
 		cudaError
 		cudaOccupancyMaxPotentialBlockSize(int *minGridSize, int *blockSize, const void *func, size_t dynamicSMemSize,
 		                                   int blockSizeLimit);
-		cudaOccupancyMaxPotentialBlockSize(&blocks, &block_size, k, 0, max_block_size) && assertcu;
+		cudaOccupancyMaxPotentialBlockSize(&blocks, &block_size, k_type_erased, 0, max_block_size) && assertcu;
 		grid_size = elements / block_size;
 		if (grid_size >= cuda_ctx.dev_props.multiProcessorCount) break;
 	}
@@ -59,5 +59,5 @@ int2 kernel_info_base::linear_configuration(size_t elements) const {
 		                      << " lmem" << endl << '\t' << block_size << " linear block size" << endl;
 		printed_info = true;
 	}
-	return int2{grid_size, block_size};
+	return {grid_size, block_size};
 }

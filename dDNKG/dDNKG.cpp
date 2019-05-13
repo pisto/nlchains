@@ -97,12 +97,12 @@ namespace dDNKG {
 		set_device_object(dt_d_host, dt_d);
 		set_device_object(beta, dDNKG::beta);
 
-		plane2split splitter(gconf.chain_length, gconf.shard_copies);
-		splitter.split(gres.shard_gpu, streams[s_move]);
+		plane2split splitter;
+		splitter.split(streams[s_move]);
 
 		loop_control_gpu loop_ctl(streams[s_move]);
 		auto dumper = [&] {
-			if (split_kernel) splitter.plane(gres.shard_gpu, streams[s_move], streams[s_dump]);
+			if (split_kernel) splitter.plane(streams[s_move], streams[s_dump]);
 			cudaMemcpyAsync(gres.shard_host, gres.shard_gpu, gconf.sizeof_shard, cudaMemcpyDeviceToHost, streams[s_dump]) &&
 			assertcu;
 			completion done_copy(streams[s_dump]);
@@ -113,19 +113,19 @@ namespace dDNKG {
 		while (1) {
 			bool full_dump = loop_ctl % gconf.dump_interval == 0;
 			if (full_dump) dumper();
-			if (!split_kernel) splitter.split(gres.shard_gpu, streams[s_move], streams[s_entropy]);
+			if (!split_kernel) splitter.split(streams[s_move], streams[s_entropy]);
 			completion(streams[s_entropy]).blocks(streams[s_entropy_aux]);
 			double one = 1, zero = 0;
 			cublasSetStream(cublas, streams[s_entropy]) && assertcublas;
 			cublasDgemm(cublas, CUBLAS_OP_N, CUBLAS_OP_N,
 			            gconf.shard_copies, gconf.chain_length, gconf.chain_length,
-			            &one, splitter.real_transposed, gconf.shard_copies,
+			            &one, splitter.coords_transposed, gconf.shard_copies,
 			            eigenvectors_times_omega, gconf.chain_length,
 			            &zero, projection_phi, gconf.shard_copies) && assertcublas;
 			cublasSetStream(cublas, streams[s_entropy_aux]) && assertcublas;
 			cublasDgemm(cublas, CUBLAS_OP_N, CUBLAS_OP_N,
 			            gconf.shard_copies, gconf.chain_length, gconf.chain_length,
-			            &one, splitter.img_transposed, gconf.shard_copies,
+			            &one, splitter.momenta_transposed, gconf.shard_copies,
 			            eigenvectors, gconf.chain_length,
 			            &zero, projection_pi, gconf.shard_copies) && assertcublas;
 			completion(streams[s_entropy_aux]).blocks(streams[s_entropy]);

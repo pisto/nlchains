@@ -24,39 +24,39 @@ __global__ void unsplit_kernel(uint32_t elements, const double *real, const doub
  * The transposition is implemented with the cuBLAS operation cublasZgeam.
  */
 
-plane2split::plane2split(uint16_t chainlen, uint16_t shard_copies) :
-		chainlen(chainlen), shard_copies(shard_copies), elements(uint32_t(shard_copies) * chainlen),
-		real_transposed(elements * 2), img_transposed((double *) real_transposed + elements),
-		planar_transposed(elements) {
+plane2split::plane2split() : coords_transposed(gconf.shard_elements * 2),
+                             momenta_transposed((double *) coords_transposed + gconf.shard_elements),
+                             planar_transposed(gconf.shard_elements) {
 	cublasCreate(&handle) && assertcublas;
 }
 
-completion plane2split::split(const double2 *planar, cudaStream_t producer, cudaStream_t consumer) {
+completion plane2split::split(cudaStream_t producer, cudaStream_t consumer) {
 	cuDoubleComplex one{1., 0.}, zero{0., 0.};
 	completion(producer).blocks(consumer);
 	cublasSetStream(handle, consumer) && assertcublas;
-	cublasZgeam(handle, CUBLAS_OP_T, CUBLAS_OP_N, shard_copies, chainlen, &one, planar, chainlen, &zero, 0,
-	            shard_copies, planar_transposed, shard_copies) && assertcublas;
+	cublasZgeam(handle, CUBLAS_OP_T, CUBLAS_OP_N, gconf.shard_copies, gconf.chain_length, &one, gres.shard_gpu,
+	            gconf.chain_length, &zero, 0, gconf.shard_copies, planar_transposed, gconf.shard_copies) &&
+	assertcublas;
 	completion(consumer).blocks(producer);
 	static auto kinfo = make_kernel_info(split_kernel);
-	auto linear_config = kinfo.linear_configuration(elements);
-	split_kernel <<< linear_config.x, linear_config.y, 0, consumer >>>
-	             (elements, planar_transposed, real_transposed, img_transposed);
+	auto launch = kinfo.linear_configuration(gconf.shard_elements);
+	kinfo.k <<< launch.blocks, launch.threads, 0, consumer >>>
+	        (gconf.shard_elements, planar_transposed, coords_transposed, momenta_transposed);
 	cudaGetLastError() && assertcu;
 	return completion(consumer);
 }
 
-completion plane2split::plane(double2 *planar, cudaStream_t producer, cudaStream_t consumer) const {
+completion plane2split::plane(cudaStream_t producer, cudaStream_t consumer) const {
 	static auto kinfo = make_kernel_info(unsplit_kernel);
-	auto linear_config = kinfo.linear_configuration(elements);
+	auto launch = kinfo.linear_configuration(gconf.shard_elements);
 	completion(producer).blocks(consumer);
-	unsplit_kernel <<< linear_config.x, linear_config.y, 0, consumer >>>
-	               (elements, real_transposed, img_transposed, planar_transposed);
+	kinfo.k <<< launch.blocks, launch.threads, 0, consumer >>>
+	        (gconf.shard_elements, coords_transposed, momenta_transposed, planar_transposed);
 	cudaGetLastError() && assertcu;
 	completion(consumer).blocks(producer);
 	cuDoubleComplex one{1., 0.}, zero{0., 0.};
 	cublasSetStream(handle, consumer) && assertcublas;
-	cublasZgeam(handle, CUBLAS_OP_T, CUBLAS_OP_N, chainlen, shard_copies, &one, planar_transposed, shard_copies, &zero,
-	            0, chainlen, planar, chainlen) && assertcublas;
+	cublasZgeam(handle, CUBLAS_OP_T, CUBLAS_OP_N, gconf.chain_length, gconf.shard_copies, &one, planar_transposed,
+	            gconf.shard_copies, &zero, 0, gconf.chain_length, gres.shard_gpu, gconf.chain_length) && assertcublas;
 	return completion(consumer);
 }
