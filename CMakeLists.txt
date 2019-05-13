@@ -37,6 +37,7 @@ include_directories(${Boost_INCLUDE_DIRS})
 
 find_package(Armadillo REQUIRED)
 set_source_files_properties(dDNKG/dDNKG.cpp PROPERTIES INCLUDE_DIRECTORIES ${ARMADILLO_INCLUDE_DIRS})
+set_source_files_properties(dDNKG/dDNKG.cu PROPERTIES COMPILE_DEFINITIONS ARMA_ALLOW_FAKE_GCC)
 
 #we use the host compiler directly so we need to extract the cuda include path
 get_filename_component(CUDA_ROOT ${CMAKE_CUDA_COMPILER} DIRECTORY)
