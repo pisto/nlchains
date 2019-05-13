@@ -76,7 +76,7 @@ namespace dDNKG {
 			BOOST_ALIGN_ASSUME_ALIGNED(phi, 64);
 			BOOST_ALIGN_ASSUME_ALIGNED(pi, 64);
 
-			loop_control loop_ctl(gconf.time_offset);
+			loop_control loop_ctl;
 			while (1) {
 				res.calc_linenergies(0.5 / gconf.shard_copies).calc_entropies().check_entropy().write_entropy(loop_ctl);
 				if (loop_ctl % gconf.dump_interval == 0) res.write_linenergies(loop_ctl).write_shard(loop_ctl);

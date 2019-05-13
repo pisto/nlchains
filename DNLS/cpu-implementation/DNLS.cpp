@@ -98,7 +98,7 @@ namespace DNLS {
 				}
 			};
 
-			loop_control loop_ctl(gconf.time_offset);
+			loop_control loop_ctl;
 			while (1) {
 				loopi(gconf.chain_length) gres.linenergies_host[i] *= omega[i];
 				res.calc_linenergies((0.5 / gconf.shard_copies) / gconf.chain_length).calc_entropies().check_entropy().write_entropy(loop_ctl);

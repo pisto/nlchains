@@ -15,8 +15,6 @@
 
 struct loop_control {
 
-	loop_control(uint64_t timebase): t(timebase) {}
-
 	operator uint64_t() const { return t; }
 	uint64_t operator*() const { return t; }
 	uint64_t operator+=(uint64_t steps) { return t += steps; }
@@ -27,7 +25,7 @@ struct loop_control {
 	}
 
 protected:
-	uint64_t t;
+	uint64_t t = gconf.time_offset;
 	mutable bool synched = false;
 	//the max step reduction is performed independently from all other calculations
 	const boost::mpi::communicator mpi_global_alt{ mpi_global, boost::mpi::comm_duplicate };
@@ -45,8 +43,8 @@ struct loop_control_gpu : loop_control {
 	 */
 	std::exception_ptr callback_err;
 
-	loop_control_gpu(uint64_t timebase, cudaStream_t throttle_stream, uint32_t throttle_period = 2) : loop_control(
-			timebase), throttle_stream(throttle_stream), throttle_period(throttle_period) {}
+	loop_control_gpu(cudaStream_t throttle_stream, uint32_t throttle_period = 2) : throttle_stream(throttle_stream),
+	                                                                               throttle_period(throttle_period) {}
 
 	uint64_t operator+=(uint64_t steps) {
 		if (throttle_period) {

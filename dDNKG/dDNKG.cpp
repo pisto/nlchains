@@ -100,7 +100,7 @@ namespace dDNKG {
 		plane2split splitter(gconf.chain_length, gconf.shard_copies);
 		splitter.split(gres.shard_gpu, streams[s_move]);
 
-		loop_control_gpu loop_ctl(gconf.time_offset, streams[s_move]);
+		loop_control_gpu loop_ctl(streams[s_move]);
 		auto dumper = [&] {
 			if (split_kernel) splitter.plane(gres.shard_gpu, streams[s_move], streams[s_dump]);
 			cudaMemcpyAsync(gres.shard_host, gres.shard_gpu, gconf.sizeof_shard, cudaMemcpyDeviceToHost, streams[s_dump]) &&

@@ -94,7 +94,7 @@ namespace DNKG_FPUT_Toda {
 		}
 		destructor([&] { delete splitter; });
 
-		loop_control_gpu loop_ctl(gconf.time_offset, streams[s_move]);
+		loop_control_gpu loop_ctl(streams[s_move]);
 		auto dumper = [&] {
 			cudaMemcpyAsync(gres.shard_host, gres.shard_gpu, gconf.sizeof_shard, cudaMemcpyDeviceToHost, streams[s_dump]) &&
 			assertcu;
