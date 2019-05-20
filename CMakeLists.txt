@@ -64,6 +64,9 @@ if(CMAKE_BUILD_TYPE MATCHES Rel)
     if(OpenMP_CXX_FOUND)
         set_property(SOURCE common/results_entropy.cpp DNKG_FPUT_Toda/cpu-implementation/DNKG_FPUT_Toda.cpp dDNKG/cpu-implementation/dDNKG.cpp DNLS/cpu-implementation/DNLS.cpp APPEND_STRING PROPERTY COMPILE_FLAGS " ${OpenMP_CXX_FLAGS} ")
     endif()
+    if(NOT "${CMAKE_SYSTEM_PROCESSOR}" STREQUAL "x86_64")
+        message(WARNING "Automatic vectorization has been tuned for x86_64 only.")
+    endif()
 endif()
 
 #targeted optimization for different values of -chain_length
