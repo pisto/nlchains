@@ -83,7 +83,7 @@ namespace dDNKG {
 		results res(false);
 
 		enum {
-			s_move = 0, s_dump, s_entropy, s_entropy_aux, s_results, s_total
+			s_move = 0, s_dump, s_linenergies, s_linenergies_aux, s_results, s_total
 		};
 		cudaStream_t streams[s_total];
 		memset(streams, 0, sizeof(streams));
@@ -113,25 +113,25 @@ namespace dDNKG {
 		while (1) {
 			bool full_dump = loop_ctl % gconf.dump_interval == 0;
 			if (full_dump) dumper();
-			if (!split_kernel) splitter.split(streams[s_move], streams[s_entropy]);
-			completion(streams[s_entropy]).blocks(streams[s_entropy_aux]);
+			if (!split_kernel) splitter.split(streams[s_move], streams[s_linenergies]);
+			completion(streams[s_linenergies]).blocks(streams[s_linenergies_aux]);
 			double one = 1, zero = 0;
-			cublasSetStream(cublas, streams[s_entropy]) && assertcublas;
+			cublasSetStream(cublas, streams[s_linenergies]) && assertcublas;
 			cublasDgemm(cublas, CUBLAS_OP_N, CUBLAS_OP_N,
 			            gconf.shard_copies, gconf.chain_length, gconf.chain_length,
 			            &one, splitter.coords_transposed, gconf.shard_copies,
 			            eigenvectors_times_omega, gconf.chain_length,
 			            &zero, projection_phi, gconf.shard_copies) && assertcublas;
-			cublasSetStream(cublas, streams[s_entropy_aux]) && assertcublas;
+			cublasSetStream(cublas, streams[s_linenergies_aux]) && assertcublas;
 			cublasDgemm(cublas, CUBLAS_OP_N, CUBLAS_OP_N,
 			            gconf.shard_copies, gconf.chain_length, gconf.chain_length,
 			            &one, splitter.momenta_transposed, gconf.shard_copies,
 			            eigenvectors, gconf.chain_length,
 			            &zero, projection_pi, gconf.shard_copies) && assertcublas;
-			completion(streams[s_entropy_aux]).blocks(streams[s_entropy]);
-			if (split_kernel) completion(streams[s_entropy]).blocks(streams[s_move]);
-			make_linenergies(projection_phi, projection_pi, streams[s_entropy]);
-			completion(streams[s_entropy]).blocks(streams[s_results]);
+			completion(streams[s_linenergies_aux]).blocks(streams[s_linenergies]);
+			if (split_kernel) completion(streams[s_linenergies]).blocks(streams[s_move]);
+			make_linenergies(projection_phi, projection_pi, streams[s_linenergies]);
+			completion(streams[s_linenergies]).blocks(streams[s_results]);
 			add_cuda_callback(streams[s_results], loop_ctl.callback_err,
 			                  [&, full_dump, t = *loop_ctl](cudaError_t status) {
 				                  if (loop_ctl.callback_err) return;
@@ -141,12 +141,12 @@ namespace dDNKG {
 			                  });
 			completion done_results(streams[s_results]);
 			done_results.blocks(streams[s_dump]);
-			done_results.blocks(streams[s_entropy]);
+			done_results.blocks(streams[s_linenergies]);
 
 			if (loop_ctl.break_now()) break;
 
 			completion finish_move = move(splitter, split_kernel, mp2, streams[s_move]);
-			finish_move.blocks(streams[s_entropy]);
+			finish_move.blocks(streams[s_linenergies]);
 			finish_move.blocks(streams[s_dump]);
 
 			loop_ctl += gconf.kernel_batching;
@@ -154,7 +154,7 @@ namespace dDNKG {
 
 		if (loop_ctl % gconf.dump_interval != 0) {
 			dumper();
-			completion(streams[s_entropy]).wait();
+			completion(streams[s_linenergies]).wait();
 			res.write_linenergies(loop_ctl);
 			completion(streams[s_dump]).wait();
 			res.write_shard(loop_ctl);

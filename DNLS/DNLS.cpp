@@ -49,7 +49,7 @@ namespace DNLS {
 		results res(true);
 
 		enum {
-			s_move = 0, s_cb_linear, s_cb_nonlinear, s_dump, s_entropy, s_results, s_total
+			s_move = 0, s_cb_linear, s_cb_nonlinear, s_dump, s_linenergies, s_results, s_total
 		};
 		cudaStream_t streams[s_total];
 		memset(streams, 0, sizeof(streams));
@@ -98,7 +98,7 @@ namespace DNLS {
 			init_plan(fft_plain);
 			update_max_size(fft_plain);
 			init_plan(fft_plain_entropy);
-			cufftSetStream(fft_plain_entropy, streams[s_entropy]) && assertcufft;
+			cufftSetStream(fft_plain_entropy, streams[s_linenergies]) && assertcufft;
 			update_max_size(fft_plain_entropy);
 			if (!no_linear_callback) {
 				init_plan(fft_elvolve_psik);
@@ -136,10 +136,10 @@ namespace DNLS {
 			bool full_dump = loop_ctl % gconf.dump_interval == 0;
 			if (full_dump) dumper();
 			cufftExecZ2Z(fft_plain_entropy, gres.shard_gpu, psis_k, CUFFT_FORWARD) && assertcufft;
-			completion(streams[s_entropy]).blocks(streams[s_move]);
-			make_linenergies(psis_k, omega, streams[s_entropy]);
-			completion(streams[s_entropy]).blocks(streams[s_results]);
-			add_cuda_callback(streams[s_entropy], loop_ctl.callback_err,
+			completion(streams[s_linenergies]).blocks(streams[s_move]);
+			make_linenergies(psis_k, omega, streams[s_linenergies]);
+			completion(streams[s_linenergies]).blocks(streams[s_results]);
+			add_cuda_callback(streams[s_linenergies], loop_ctl.callback_err,
 			                  [&, full_dump, t = *loop_ctl](cudaError_t status) {
 				                  if (loop_ctl.callback_err) return;
 				                  status && assertcu;
@@ -148,7 +148,7 @@ namespace DNLS {
 			                  });
 			completion done_results(streams[s_results]);
 			done_results.blocks(streams[s_dump]);
-			done_results.blocks(streams[s_entropy]);
+			done_results.blocks(streams[s_linenergies]);
 
 			if (loop_ctl.break_now()) break;
 
@@ -169,7 +169,7 @@ namespace DNLS {
 					completion(streams[s_move]).blocks(streams[s_cb_linear]);
 				}
 			completion finish_move = evolve_nonlinear(beta * gconf.dt * symplectic_c[7], streams[s_move]);
-			finish_move.blocks(streams[s_entropy]);
+			finish_move.blocks(streams[s_linenergies]);
 			finish_move.blocks(streams[s_dump]);
 
 			loop_ctl += gconf.kernel_batching;
@@ -177,7 +177,7 @@ namespace DNLS {
 
 		if (loop_ctl % gconf.dump_interval != 0) {
 			dumper();
-			completion(streams[s_entropy]).wait();
+			completion(streams[s_linenergies]).wait();
 			res.write_linenergies(loop_ctl);
 			completion(streams[s_dump]).wait();
 			res.write_shard(loop_ctl);

@@ -52,7 +52,7 @@ namespace DNKG_FPUT_Toda {
 		results res(m == 0.);
 
 		enum {
-			s_move = 0, s_dump, s_entropy, s_entropy_aux, s_results, s_total
+			s_move = 0, s_dump, s_linenergies, s_linenergies_aux, s_results, s_total
 		};
 		cudaStream_t streams[s_total];
 		memset(streams, 0, sizeof(streams));
@@ -70,7 +70,7 @@ namespace DNKG_FPUT_Toda {
 		cufftHandle fft_plan = 0;
 		destructor([&] { if (fft_plan) cufftDestroy(fft_plan); });
 		cufftPlan1d(&fft_plan, gconf.chain_length, CUFFT_Z2Z, 2 * int(gconf.shard_copies)) && assertcufft;
-		cufftSetStream(fft_plan, streams[s_entropy]) && assertcufft;
+		cufftSetStream(fft_plan, streams[s_linenergies]) && assertcufft;
 
 		//constants
 		double dt_c_host[8], dt_d_host[8], alpha2 = 2 * alpha, alpha2_inv = 1 / alpha2;
@@ -104,22 +104,22 @@ namespace DNKG_FPUT_Toda {
 		};
 		destructor(cudaDeviceSynchronize);
 		while (1) {
-			if (splitter) splitter->plane(streams[s_move], streams[s_dump]).blocks(streams[s_entropy]);
+			if (splitter) splitter->plane(streams[s_move], streams[s_dump]).blocks(streams[s_linenergies]);
 			bool full_dump = loop_ctl % gconf.dump_interval == 0;
 			if (full_dump) dumper();
 			//entropy stream is already synced to move or dump stream, that is the readiness of the planar representation
-			cudaMemsetAsync(fft_phi, 0, gconf.sizeof_shard * 2, streams[s_entropy]) && assertcu;
-			completion(streams[s_entropy]).blocks(streams[s_entropy_aux]);
+			cudaMemsetAsync(fft_phi, 0, gconf.sizeof_shard * 2, streams[s_linenergies]) && assertcu;
+			completion(streams[s_linenergies]).blocks(streams[s_linenergies_aux]);
 			//interleave phi and pi with zeroes, since we do a complex FFT
 			cudaMemcpy2DAsync(fft_phi, sizeof(double2), gres.shard_gpu, sizeof(double2), sizeof(double),
-			                  gconf.shard_elements, cudaMemcpyDeviceToDevice, streams[s_entropy]) && assertcu;
+			                  gconf.shard_elements, cudaMemcpyDeviceToDevice, streams[s_linenergies]) && assertcu;
 			cudaMemcpy2DAsync(fft_pi, sizeof(double2), &gres.shard_gpu[0].y, sizeof(double2), sizeof(double),
-			                  gconf.shard_elements, cudaMemcpyDeviceToDevice, streams[s_entropy_aux]) && assertcu;
-			completion(streams[s_entropy_aux]).blocks(streams[s_entropy]);
-			if (!splitter) completion(streams[s_entropy]).blocks(streams[s_move]);
+			                  gconf.shard_elements, cudaMemcpyDeviceToDevice, streams[s_linenergies_aux]) && assertcu;
+			completion(streams[s_linenergies_aux]).blocks(streams[s_linenergies]);
+			if (!splitter) completion(streams[s_linenergies]).blocks(streams[s_move]);
 			cufftExecZ2Z(fft_plan, fft_phi, fft_phi, CUFFT_FORWARD) && assertcufft;
-			make_linenergies(fft_phi, fft_pi, omega, streams[s_entropy]);
-			completion(streams[s_entropy]).blocks(streams[s_results]);
+			make_linenergies(fft_phi, fft_pi, omega, streams[s_linenergies]);
+			completion(streams[s_linenergies]).blocks(streams[s_results]);
 			add_cuda_callback(streams[s_results], loop_ctl.callback_err,
 			                  [&, full_dump, t = *loop_ctl](cudaError_t status) {
 				                  if (loop_ctl.callback_err) return;
@@ -129,12 +129,12 @@ namespace DNKG_FPUT_Toda {
 			                  });
 			completion done_results(streams[s_results]);
 			done_results.blocks(streams[s_dump]);
-			done_results.blocks(streams[s_entropy]);
+			done_results.blocks(streams[s_linenergies]);
 
 			if (loop_ctl.break_now()) break;
 
 			completion finish_move = move<model>(splitter, streams[s_move]);
-			finish_move.blocks(streams[s_entropy]);
+			finish_move.blocks(streams[s_linenergies]);
 			finish_move.blocks(streams[s_dump]);
 
 			loop_ctl += gconf.kernel_batching;
@@ -142,7 +142,7 @@ namespace DNKG_FPUT_Toda {
 
 		if (loop_ctl % gconf.dump_interval != 0) {
 			dumper();
-			completion(streams[s_entropy]).wait();
+			completion(streams[s_linenergies]).wait();
 			res.write_linenergies(loop_ctl);
 			completion(streams[s_dump]).wait();
 			res.write_shard(loop_ctl);
