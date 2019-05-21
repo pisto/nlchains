@@ -17,7 +17,7 @@ EnergydDNKG::usage="EnergydDNKG[\[Phi]\[Pi], m] returns the total energy for a r
 EnergyDNLS::usage="EnergyDNLS[\[Psi], \[Beta]] returns the total energy for a realization \[Psi] of the DNLS model, with nonlinear parameter \[Beta]";
 EigendDNKG::usage="EigendDNKG[m] returns the eigensystem of the dDNKG model with a list of mass parameters m, as a list of pairs of pulsation (square root of eigenvalues) and the corresponding eigenvector";
 EntropyINF::usage="EntropyINF[e] returns the information entropy for the list of linear energies e";
-EntropyWT::usage="EntropyINF[e] returns the Wave Turbulence entropy for the list of linear energies e";
+EntropyWT::usage="EntropyWT[e] returns the Wave Turbulence entropy for the list of linear energies e";
 
 
 (* ::Input::Initialization:: *)
