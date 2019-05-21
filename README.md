@@ -22,11 +22,9 @@ Supported models:
 
 This software has been tested primarily on CUDA 9.0 and K40 devices on Linux. It is expected to work on later CUDA toolchains and GPU architectures. Mac has not been tested but it should in theory work. Windows is not supported, because cuFFT callbacks are used and they are not available in Windows.
 
-The build prerequisites are: [CMake](https://cmake.org/) (>=3.9), MPI (minimum MPI-2, Open MPI 2.x has been tested), [Boost](https://www.boost.org/) (Boost.Program_options, Boost.MPI), [Armadillo](http://arma.sourceforge.net/). From the CUDA Toolkit, we use cuFFT and cuBLAS. For an Ubuntu environment, the requires packages should be `libarmadillo-dev libboost-mpi-dev libboost-program-options-dev cmake pkg-config libfftw3-dev`, while for a Fedora environment they should be `armadillo-devel boost-openmpi-devel cmake make openmpi-devel fftw3-devel`.
-
 ## Building with Docker
 
-Since the interaction between host operating system, compiler version and CUDA SDK version can be complex, some Dockerfiles are provided in order to build `nlchains` in a Docker environment. Simply run one of the following:
+Since the interaction between host operating system, compiler version and CUDA SDK version can be complex, some Dockerfiles are provided in order to build `nlchains` in a Docker environment. This is the preferred way of building `nlchains`. Simply run one of the following:
 ```bash
 #CUDA 9.0, Fedora
 docker build -f Dockerfile-fedora25-cuda90 --build-arg optimized_chain_length=XX .
@@ -38,6 +36,8 @@ docker build -f Dockerfile-ubuntu1804-cuda100 --build-arg optimized_chain_length
 Please note that the parameter `--build-arg optimized_chain_length=XX` with XX some number greater than 32 is necessary, because some optimized versions of the kernels need to be generated with a compile-time constant of the intendend value of the chain length. The generated binary can run any other value of the chain length, but without any specific optimization. For more information read section [Performance considerations](#performance-considerations).
 
 ## Building manually
+
+The build prerequisites are: [CMake](https://cmake.org/) (>=3.9), MPI (minimum MPI-2, Open MPI 2.x has been tested), [Boost](https://www.boost.org/) (Boost.Program_options, Boost.MPI), [Armadillo](http://arma.sourceforge.net/). From the CUDA Toolkit, we use cuFFT and cuBLAS. For an Ubuntu environment, the requires packages should be `libarmadillo-dev libboost-mpi-dev libboost-program-options-dev cmake pkg-config libfftw3-dev`, while for a Fedora environment they should be `armadillo-devel boost-openmpi-devel cmake make openmpi-devel fftw3-devel`.
 
 To build nchains, run the following
 ```bash
@@ -139,7 +139,7 @@ For the DNKG, FPUT and Toda models where the DFT is used only for the linear ene
 
 # Known bugs
 
-Because of a bug in older versions of CMake, the MPI compile flags (`MPI_CXX_COMPILE_OPTIONS`) are not honored. See `CMakeLists.txt` for more details.
+Because of a bug in older versions of CMake, the MPI compile flags (`MPI_CXX_COMPILE_OPTIONS`) are not honored. See [CMakeLists.txt](CMakeLists.txt) for more details.
 
 Because of a bug in `gcc` version 5.\* or 6.\*, opening a non-existen file for the initial state, or the mass parameter configuration in the `dDNKG` model may return a rather generic message:
 ```
