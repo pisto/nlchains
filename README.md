@@ -33,6 +33,8 @@ docker build -f Dockerfile-fedora27-cuda100 --build-arg optimized_chain_length=X
 #CUDA 10.0, Ubuntu
 docker build -f Dockerfile-ubuntu1804-cuda100 --build-arg optimized_chain_length=XX .
 ```
+The binary will be copied to `/usr/bin/nlchains-{$optimized_chain_length}`, and it is compatible with CUDA architectures 3.5, 6.0 and 7.0 (all the architectures with a proper support for operations on `double` data).
+
 Please note that the parameter `--build-arg optimized_chain_length=XX` with XX some number greater than 32 is necessary, because some optimized versions of the kernels need to be generated with a compile-time constant of the intendend value of the chain length. The generated binary can run any other value of the chain length, but without any specific optimization. For more information read section [Performance considerations](#performance-considerations).
 
 ## Building manually
@@ -116,6 +118,10 @@ A typical invocation of `nlchains` to run on two GPUs looks like this:
 ```
 mpirun -n 2 nlchains FPUT -v -p alpha-N128-alpha1 -i alpha-N128 -n 128 -c 4096 --WTlimit -e 0.05 --dt 0.1 -k 10000 --dumpsteps 1000000 --alpha 1 --beta 0
 ```
+
+## Wolfram Mathematica post-processing
+
+A Wolfram Mathematica library is provided in [nlchains.m](supporting-material/post-processing/nlchains.m) (load with ``Needs["nlchains`"];``). It provides functions to load all the dump files, calculate the total energy of chains, etc. A sample usage of its interface, plus the help message for all the functions, can be found in the notebook [examples.nb](supporting-material/post-processing/examples.nb).
 
 # Performance considerations
 
