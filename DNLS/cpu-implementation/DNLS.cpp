@@ -101,7 +101,7 @@ namespace DNLS {
 			loop_control loop_ctl;
 			while (1) {
 				loopi(gconf.chain_length) gres.linenergies_host[i] *= omega[i];
-				res.calc_linenergies((0.5 / gconf.shard_copies) / gconf.chain_length).calc_entropies().check_entropy().write_entropy(loop_ctl);
+				res.calc_linenergies(1. / gconf.shard_elements).calc_entropies().check_entropy().write_entropy(loop_ctl);
 				if (loop_ctl % gconf.dump_interval == 0) res.write_linenergies(loop_ctl).write_shard(loop_ctl);
 
 				if (loop_ctl.break_now()) break;
