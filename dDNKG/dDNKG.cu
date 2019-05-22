@@ -128,22 +128,21 @@ namespace dDNKG {
 	}
 	//some machinery to get the compiler to create all the versions of move_planar, and to get the right one at runtime
 	namespace {
-		using thread_kernel_info = kernel_info<decltype(&move_chain_in_thread<0>)>;
+		using thread_kinfo = kernel_info<decltype(&move_chain_in_thread<0>)>;
 
 		template<int chain_length = 2>
 		struct thread_kernel_resolver {
-			static const thread_kernel_info &get(int chain_length_required) {
+			static const thread_kinfo &get(int chain_length_required) {
 				if (chain_length != chain_length_required)
 					return thread_kernel_resolver<chain_length + 1>::get(chain_length_required);
-				static thread_kernel_info kinfo(move_chain_in_thread<chain_length>,
-				                                "move_chain_in_thread<" + std::to_string(chain_length) + ">");
+				static auto kinfo = make_kernel_info(move_chain_in_thread<chain_length>);
 				return kinfo;
 			}
 		};
 
 		template<>
 		struct thread_kernel_resolver<32> {
-			static const thread_kernel_info &get(int) { throw std::logic_error("Shouldn't be here"); }
+			static const thread_kinfo &get(int) { throw std::logic_error("Shouldn't be here"); }
 		};
 	}
 

@@ -416,11 +416,11 @@ struct kernel_info : kernel_info_base {
 };
 
 template<typename Kernel>
-auto make_kernel_info(Kernel k, const std::string &kname_preprocessor, const std::string &kname = std::string()) {
-	return kernel_info<Kernel>(k, kname.empty() ? kname_preprocessor : kname);
+auto make_kernel_info_name(Kernel k, const std::string &kname) {
+	return kernel_info<Kernel>(k, kname);
 }
 
-#define make_kernel_info(k, ...) make_kernel_info(k, #k, ##__VA_ARGS__)
+#define make_kernel_info(k) make_kernel_info_name(k, #k)
 
 /*
  * Move from planar (copy, chain index, real/img indexes) to split (real/img, chain, copy) representations of the chains.

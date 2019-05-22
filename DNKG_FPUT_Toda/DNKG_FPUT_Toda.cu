@@ -182,23 +182,21 @@ namespace DNKG_FPUT_Toda {
 	}
 	//some machinery to get the compiler to create all the versions of move_planar, and to get the right one at runtime
 	namespace {
-		using thread_kernel_info = kernel_info<decltype(&move_chain_in_thread<FPUT, 0>)>;
+		using thread_kinfo = kernel_info<decltype(&move_chain_in_thread<FPUT, 0>)>;
 
 		template<Model model, int chain_length = 2>
 		struct thread_kernel_resolver {
-			static const thread_kernel_info &get(int chain_length_required) {
+			static const thread_kinfo &get(int chain_length_required) {
 				if (chain_length != chain_length_required)
 					return thread_kernel_resolver<model, chain_length + 1>::get(chain_length_required);
-				static thread_kernel_info kinfo(move_chain_in_thread<model, chain_length>,
-				                                "move_chain_in_thread<" + std::to_string(int(model)) + "," +
-				                                std::to_string(chain_length) + ">");
+				static auto kinfo = make_kernel_info((move_chain_in_thread<model, chain_length>));
 				return kinfo;
 			}
 		};
 
 		template<Model model>
 		struct thread_kernel_resolver<model, 32> {
-			static const thread_kernel_info &get(int) { throw std::logic_error("Shouldn't be here"); }
+			static const thread_kinfo &get(int) { throw std::logic_error("Shouldn't be here"); }
 		};
 	}
 
@@ -256,7 +254,7 @@ namespace DNKG_FPUT_Toda {
 	template<Model model>
 	completion move(plane2split *&splitter, cudaStream_t stream) {
 		if (splitter) {
-			static auto kinfo = make_kernel_info(move_split<model>, "move_split");
+			static auto kinfo = make_kernel_info(move_split<model>);
 			auto launch = kinfo.linear_configuration(gconf.shard_copies);
 			kinfo.k <<< launch.blocks, launch.threads, 0, stream >>>
 			        (splitter->coords_transposed, splitter->momenta_transposed, gconf.chain_length, gconf.shard_copies,
@@ -268,7 +266,7 @@ namespace DNKG_FPUT_Toda {
 				kinfo.k <<< launch.blocks, launch.threads, 0, stream >>>
 				        (gres.shard_gpu, gconf.kernel_batching, gconf.shard_copies);
 			} else if (gconf.chain_length == optimized_chain_length) {
-				static auto kinfo = make_kernel_info(move_chain_in_warp<model>, "move_chain_in_warp");
+				static auto kinfo = make_kernel_info(move_chain_in_warp<model>);
 				auto launch = kinfo.linear_configuration(uint32_t(gconf.shard_copies) * 32);
 				kinfo.k <<< launch.blocks, launch.threads, 0, stream >>>
 				        (gres.shard_gpu, gconf.kernel_batching, gconf.shard_copies);
