@@ -45,7 +45,7 @@ EnergyToda[\[Phi]pi_?ArrayQ,\[Alpha]_]/;MatchQ[Dimensions@\[Phi]pi,{_,2}]:=With[
 pi^2/2+Exp[2 \[Phi]diff \[Alpha]]/(4 \[Alpha]^2)-\[Phi]diff/(2 \[Alpha])-1/(4 \[Alpha]^2)]//Total
 EnergyDNLS[a_?ArrayQ,g_]/;ArrayDepth@a==1:=Abs@ListConvolve[{1,-1},a,{-1,-1}]^2+g/2Abs@a^4//Total
 EnergydDNKG[\[Phi]pi_?ArrayQ,m_?ArrayQ,g_]/;MatchQ[Dimensions@\[Phi]pi,{_,2}]&&Length@m==Length@\[Phi]pi:=With[{\[Phi]=\[Phi]pi[[All,1]],pi=\[Phi]pi[[All,2]]},
-pi^2/2+ListConvolve[{1,-1},\[Phi],{-1,-1}]^2/2+m \[Phi]^2/2+g \[Phi]^4/4]//Total
+pi^2/2+ListConvolve[{1,-1},\[Phi],{-1,-1}]^2/2+m.\[Phi]^2/2+g \[Phi]^4/4]//Total
 
 
 (* ::Input::Initialization:: *)
