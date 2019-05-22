@@ -129,7 +129,9 @@ namespace DNLS {
 		auto dumper = [&] {
 			cudaMemcpyAsync(gres.shard_host, gres.shard_gpu, gconf.sizeof_shard, cudaMemcpyDeviceToHost, streams[s_dump]) &&
 			assertcu;
-			completion(streams[s_dump]).blocks(streams[s_move]);
+			completion done_copy(streams[s_dump]);
+			done_copy.blocks(streams[s_move]);
+			done_copy.blocks(streams[s_results]);
 		};
 
 		cudaDeviceSynchronize() && assertcu;
@@ -141,7 +143,7 @@ namespace DNLS {
 			completion(streams[s_linenergies]).blocks(streams[s_move]);
 			make_linenergies(psis_k, omega, streams[s_linenergies]);
 			completion(streams[s_linenergies]).blocks(streams[s_results]);
-			add_cuda_callback(streams[s_linenergies], loop_ctl.callback_err,
+			add_cuda_callback(streams[s_results], loop_ctl.callback_err,
 			                  [&, full_dump, t = *loop_ctl](cudaError_t status) {
 				                  if (loop_ctl.callback_err) return;
 				                  status && assertcu;
