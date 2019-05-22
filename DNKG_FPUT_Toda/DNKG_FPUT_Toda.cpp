@@ -102,6 +102,8 @@ namespace DNKG_FPUT_Toda {
 			if (!splitter) done_copy.blocks(streams[s_move]);
 			done_copy.blocks(streams[s_results]);
 		};
+
+		cudaDeviceSynchronize() && assertcu;
 		destructor(cudaDeviceSynchronize);
 		while (1) {
 			if (splitter) splitter->plane(streams[s_move], streams[s_dump]).blocks(streams[s_linenergies]);

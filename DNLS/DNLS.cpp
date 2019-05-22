@@ -131,6 +131,8 @@ namespace DNLS {
 			assertcu;
 			completion(streams[s_dump]).blocks(streams[s_move]);
 		};
+
+		cudaDeviceSynchronize() && assertcu;
 		destructor(cudaDeviceSynchronize);
 		while (1) {
 			bool full_dump = loop_ctl % gconf.dump_interval == 0;

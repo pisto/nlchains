@@ -109,6 +109,8 @@ namespace dDNKG {
 			if (!split_kernel) done_copy.blocks(streams[s_move]);
 			done_copy.blocks(streams[s_results]);
 		};
+
+		cudaDeviceSynchronize() && assertcu;
 		destructor(cudaDeviceSynchronize);
 		while (1) {
 			bool full_dump = loop_ctl % gconf.dump_interval == 0;
