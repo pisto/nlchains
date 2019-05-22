@@ -398,7 +398,7 @@ struct kernel_info_base {
 	kernel_config linear_configuration(size_t elements) const;
 
 protected:
-	mutable bool printed_info;
+	mutable size_t linear_configuration_printed = 0;
 	const void *k_type_erased;
 
 	kernel_info_base(const void *k, std::string kname) : k_type_erased(k), kname(std::move(kname)) {

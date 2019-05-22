@@ -39,25 +39,34 @@ cuda_ctx_t::cuda_ctx_raii::~cuda_ctx_raii() {
 	cudaDeviceReset();
 }
 
+//cudaOccupancyMaxPotentialBlockSize is not defined out of nvcc, no idea why
+cudaError cudaOccupancyMaxPotentialBlockSize(int *minGridSize, int *blockSize, const void *func, size_t dynamicSMemSize,
+                                             int blockSizeLimit);
+
 kernel_info_base::kernel_config kernel_info_base::linear_configuration(size_t elements) const {
-	int grid_size, block_size;
-	//all device have max threads = 2048, CC > 3 can have 64 resident blocks instead of 32
-	for (int max_block_size = cuda_ctx.dev_props.major > 3 ? 64 : 128; max_block_size; max_block_size -= 32) {
+	/*
+	 * Try to find the largest block size so that all SMs are busy, assuming that each thread works on an element.
+	 * The effective max block size is the maximum number of resident threads per multiprocessor
+	 * (cudaDeviceProp::maxThreadsPerMultiProcessor) divided by the maximum number of resident blocks per multiprocessor.
+	 * It is 16 for CC <= 3.7 and CC == 7.5, else it is 32. Then, use cudaOccupancyMaxPotentialBlockSize() to get the
+	 * CUDA runtime to take in account everything else, such as shared memory size and registry count limits.
+	 */
+	int cc = cuda_ctx.dev_props.major * 10 + cuda_ctx.dev_props.minor;
+	int max_resident_blocks = cc <= 37 || cc == 75 ? 16 : 32;       //XXX why is this not exposed in cudaDeviceProp??
+	int max_block_size = cuda_ctx.dev_props.maxThreadsPerMultiProcessor / max_resident_blocks;
+	kernel_config config;
+	for (; max_block_size; max_block_size -= 32) {
 		int blocks;
-		//cudaOccupancyMaxPotentialBlockSize is not exposed out of nvcc, no idea why
-		cudaError
-		cudaOccupancyMaxPotentialBlockSize(int *minGridSize, int *blockSize, const void *func, size_t dynamicSMemSize,
-		                                   int blockSizeLimit);
-		cudaOccupancyMaxPotentialBlockSize(&blocks, &block_size, k_type_erased, 0, max_block_size) && assertcu;
-		grid_size = elements / block_size;
-		if (grid_size >= cuda_ctx.dev_props.multiProcessorCount) break;
+		cudaOccupancyMaxPotentialBlockSize(&blocks, &config.threads, k_type_erased, 0, max_block_size) && assertcu;
+		config.blocks = elements / config.threads;
+		if (config.blocks >= cuda_ctx.dev_props.multiProcessorCount) break;
 	}
-	grid_size += !!(elements % block_size);
-	if (gconf.verbose && !printed_info) {
+	config.blocks += !!(elements % config.threads);
+	if (gconf.verbose && linear_configuration_printed != elements) {
 		collect_ostream(cerr) << process_ident << ": kernel \"" << kname << "\":" << endl << '\t'
 		                      << kernel_attrs.numRegs << " regs" << endl << '\t' << kernel_attrs.localSizeBytes
-		                      << " lmem" << endl << '\t' << block_size << " linear block size" << endl;
-		printed_info = true;
+		                      << " lmem" << endl << '\t' << config.threads << " linear block size" << endl;
+		linear_configuration_printed = elements;
 	}
-	return {grid_size, block_size};
+	return config;
 }
