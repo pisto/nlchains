@@ -109,7 +109,7 @@ namespace DNKG_FPUT_Toda {
 			if (splitter) splitter->plane(streams[s_move], streams[s_dump]).blocks(streams[s_linenergies]);
 			bool full_dump = loop_ctl % gconf.dump_interval == 0;
 			if (full_dump) dumper();
-			//entropy stream is already synced to move or dump stream, that is the readiness of the planar representation
+			//linenergies stream is already synced to move or dump stream, that is the readiness of the planar representation
 			cudaMemsetAsync(fft_phi, 0, gconf.sizeof_shard * 2, streams[s_linenergies]) && assertcu;
 			completion(streams[s_linenergies]).blocks(streams[s_linenergies_aux]);
 			//interleave phi and pi with zeroes, since we do a complex FFT
