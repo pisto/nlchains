@@ -5,7 +5,7 @@
 
 using namespace std;
 
-results::results(bool a0is0) : a0is0(a0is0), linenergies(gconf.chain_length),
+results::results(bool a0is0) try : a0is0(a0is0), linenergies(gconf.chain_length),
                                linenergies_template(gconf.dump_prefix + "-linenergies-"),
                                entropy_modes_indices(gconf.entropy_modes_indices) {
 	if (a0is0 && !entropy_modes_indices.empty() && entropy_modes_indices[0] == 0) {
@@ -16,6 +16,8 @@ results::results(bool a0is0) : a0is0(a0is0), linenergies(gconf.chain_length),
 	if (mpi_global_coord) return;
 	entropydump = ofstream(gconf.dump_prefix + "-entropy");
 	entropydump.exceptions(ios::eofbit | ios::failbit | ios::badbit);
+} catch (const ios_base::failure &e) {
+	throw ios_base::failure("cannot open entropy file ("s + e.what() + ")", e.code());
 }
 
 const results &results::write_entropy(uint64_t t) const {
@@ -27,23 +29,27 @@ const results &results::write_entropy(uint64_t t) const {
 	return *this;
 }
 
-const results &results::write_linenergies(uint64_t t) const {
+const results &results::write_linenergies(uint64_t t) const try {
 	if (mpi_global_coord) return *this;
 	ofstream linenergies_dump(linenergies_template + to_string(t));
 	linenergies_dump.exceptions(ios::eofbit | ios::failbit | ios::badbit);
 	linenergies_dump.write((char *) linenergies.data(), gconf.sizeof_linenergies);
 	return *this;
+} catch (const ios_base::failure &e) {
+	throw ios_base::failure("cannot open linenergies file ("s + e.what() + ")", e.code());
 }
 
 const results &results::write_shard(uint64_t t) const {
 	auto dumpname = gconf.dump_prefix + "-";
 	dumpname += to_string(t);
-	if (mpi_global_size == 1) {
+	if (mpi_global_size == 1) try {
 		//avoid requesting a file lock
 		ofstream dump(dumpname);
 		dump.exceptions(ios::eofbit | ios::failbit | ios::badbit);
 		dump.write((char *) gres.shard_host, gconf.sizeof_shard);
 		return *this;
+	} catch (const ios_base::failure &e) {
+		throw ios_base::failure("cannot open dump file ("s + e.what() + ")", e.code());
 	}
 	MPI_File dump_mpif;
 	MPI_File_open(mpi_global_results, dumpname.c_str(), MPI_MODE_WRONLY | MPI_MODE_CREATE, MPI_INFO_NULL, &dump_mpif) &&
